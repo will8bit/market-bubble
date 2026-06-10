@@ -610,12 +610,12 @@ export function ChatPanel() {
   const [showIcons, setShowIcons] = useState(true);
   const [showAvatars, setShowAvatars] = useState(true);
   const [showDetails, setShowDetails] = useState(true);
-  const [sourceStyle, setSourceStyle] = useState<SourceStyle>("subtle");
+  const [sourceStyle, setSourceStyle] = useState<SourceStyle>("color");
   const [chatSize, setChatSize] = useState(13);
 
   const [atBottom, setAtBottom] = useState(true);
 
-  const messages = useChatFeed(!atBottom);
+  const { messages, echoSelf, removeLocal } = useChatFeed(!atBottom);
   const scrollRef = useRef<HTMLDivElement>(null);
   const handleCashtag = useCallback((t: string) => setCashtag(t), []);
 
@@ -900,6 +900,8 @@ export function ChatPanel() {
         setStreamers={setStreamers}
         settingsOpen={panel === "settings"}
         onSettings={() => togglePanel("settings")}
+        echoSelf={echoSelf}
+        removeLocal={removeLocal}
       />
     </Flex>
   );

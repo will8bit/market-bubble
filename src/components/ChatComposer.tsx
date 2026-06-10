@@ -34,6 +34,8 @@ export function ChatComposer({
   setStreamers,
   settingsOpen = false,
   onSettings,
+  echoSelf,
+  removeLocal,
 }: {
   platforms: Set<Platform>;
   streamers: Set<StreamerId>;
@@ -41,6 +43,14 @@ export function ChatComposer({
   setStreamers: Dispatch<SetStateAction<Set<StreamerId>>>;
   settingsOpen?: boolean;
   onSettings?: () => void;
+  echoSelf: (p: {
+    authorName: string;
+    handles: { twitch?: string; kick?: string };
+    text: string;
+    channels: { streamer: StreamerId; platform: Platform }[];
+    global: boolean;
+  }) => string;
+  removeLocal: (id: string) => void;
 }) {
   const c = useColors();
   const { twitch, kick, login, send } = useAuth();
@@ -105,6 +115,13 @@ export function ChatComposer({
     setSending(true);
     setError(null);
     const targets = linkedP.flatMap((p) => selStreamers.map((s) => ({ platform: p, streamer: s.id })));
+    const echoId = echoSelf({
+      authorName: twitch?.displayName || kick?.displayName || "you",
+      handles: { twitch: twitch?.username, kick: kick?.username },
+      text: msg,
+      channels: targets.map((t) => ({ streamer: t.streamer, platform: t.platform })),
+      global: isGlobal,
+    });
     const res = await send(targets, msg);
     setSending(false);
 
@@ -123,6 +140,7 @@ export function ChatComposer({
       setText("");
       setError(notes.length ? notes.join(" · ") : null);
     } else {
+      removeLocal(echoId);
       setError(res.error || notes.join(" · ") || "Couldn't send");
     }
   }

@@ -7,6 +7,7 @@ import { connectX } from "./x";
 import { createFanoutServer } from "./server";
 import { getTwitchViewers, getKickViewers } from "./viewers";
 import { getCrypto, getPolymarket, MarketQuote, PolyMarket } from "./markets";
+import { getTwitchMedia, TwitchMedia } from "./media";
 
 async function main() {
   const port = Number(process.env.PORT || 8080);
@@ -31,6 +32,7 @@ async function main() {
 
   let crypto: MarketQuote[] = await getCrypto();
   let poly: PolyMarket[] = await getPolymarket();
+  let media: TwitchMedia = await getTwitchMedia(STREAMERS);
 
   async function pushStats() {
     const [twitchMap, kickMap] = await Promise.all([
@@ -69,6 +71,7 @@ async function main() {
         twitchStartedAt,
       },
       markets: { crypto, polymarket: poly },
+      media,
     });
   }
 
@@ -77,6 +80,9 @@ async function main() {
   const marketTimer = setInterval(async () => {
     [crypto, poly] = await Promise.all([getCrypto(), getPolymarket()]);
   }, 45000);
+  const mediaTimer = setInterval(async () => {
+    media = await getTwitchMedia(STREAMERS);
+  }, 900000);
 
   if (X_TARGETS.length === 0) {
     console.warn("[worker] no X broadcasts configured (BANKS_X_BROADCAST / ANSEM_X_BROADCAST)");
@@ -92,6 +98,7 @@ async function main() {
     for (const stop of stops) stop();
     clearInterval(statsTimer);
     clearInterval(marketTimer);
+    clearInterval(mediaTimer);
     server.stop();
     process.exit(0);
   };

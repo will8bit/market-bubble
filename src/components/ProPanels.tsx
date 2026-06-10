@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Box, Flex, HStack, Image, Text, type BoxProps } from "@chakra-ui/react";
-import { FaTwitch } from "react-icons/fa6";
+import { Box, Flex, HStack, Image, Text, VStack, type BoxProps } from "@chakra-ui/react";
+import { FaTwitch, FaXTwitter } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
-import { LuCalendar } from "react-icons/lu";
-import { useStats, type MarketQuote } from "@/lib/chat/StatsProvider";
+import { LuCalendar, LuPlay, LuX, LuExternalLink, LuEye } from "react-icons/lu";
+import { useStats, type MarketQuote, type MediaClip, type MediaVideo } from "@/lib/chat/StatsProvider";
 import { useAvatar } from "@/lib/avatars";
 import { useColors } from "@/theme/useColors";
 
@@ -630,50 +630,433 @@ function TotalTile({
   );
 }
 
-export function AudienceBox() {
+const STREAMER_NAME: Record<string, string> = { banks: "Banks", ansem: "Ansem" };
+
+function streamerAccent(c: ReturnType<typeof useColors>, id: string) {
+  return id === "banks" ? c.streamer.banks : c.streamer.ansem;
+}
+
+function useHost() {
+  const [host, setHost] = useState("");
+  useEffect(() => setHost(window.location.hostname), []);
+  return host;
+}
+
+function ago(iso: string): string {
+  if (!iso) return "";
+  const d = Date.now() - new Date(iso).getTime();
+  const day = 86400000;
+  if (d < 3600000) return `${Math.max(1, Math.round(d / 60000))}m ago`;
+  if (d < day) return `${Math.round(d / 3600000)}h ago`;
+  if (d < day * 30) return `${Math.round(d / day)}d ago`;
+  return `${Math.round(d / (day * 30))}mo ago`;
+}
+
+function fmtViews(n: number): string {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+type ActiveMedia = { kind: "clip" | "video"; id: string; title: string; url: string };
+
+function AudienceTab() {
   const c = useColors();
   const stats = useStats();
   const v = stats?.viewers;
   const streamers = v?.streamers ?? [];
-  const accent = (id: string) => (id === "banks" ? c.streamer.banks : c.streamer.ansem);
-
   return (
-    <Card title="AUDIENCE">
-      <FitScale>
+    <FitScale>
+      <Flex
+        direction={{ base: "column", md: "row" }}
+        gap={{ base: "14px", md: "16px" }}
+        w="100%"
+        justify="center"
+        align="stretch"
+      >
+        <PlatformTile
+          icon={<FaTwitch size="1em" />}
+          name="Twitch"
+          total={v?.twitch ?? null}
+          color={c.platform.twitch}
+          rows={streamers.map((s) => ({
+            name: s.name,
+            value: s.twitch,
+            color: streamerAccent(c, s.id),
+            img: STREAMER_IMG[s.id] || "",
+          }))}
+        />
+        <PlatformTile
+          icon={<SiKick size="1em" />}
+          name="Kick"
+          total={v?.kick ?? null}
+          color={c.platform.kick}
+          rows={streamers.map((s) => ({
+            name: s.name,
+            value: s.kick,
+            color: streamerAccent(c, s.id),
+            img: STREAMER_IMG[s.id] || "",
+          }))}
+        />
+        <TotalTile total={v?.total ?? null} site={v?.site ?? null} peak={v?.peak ?? null} />
+      </Flex>
+    </FitScale>
+  );
+}
+
+const ABOUT_HOSTS = [
+  { id: "banks", name: "Banks", handle: "@banks", x: "banks" },
+  { id: "ansem", name: "Ansem", handle: "@blknoiz06", x: "blknoiz06" },
+];
+
+function HostRow({ host }: { host: (typeof ABOUT_HOSTS)[number] }) {
+  const c = useColors();
+  const src = useAvatar(STREAMER_IMG[host.id] || "");
+  const accent = streamerAccent(c, host.id);
+  return (
+    <HStack
+      as="a"
+      href={`https://x.com/${host.x}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      spacing="10px"
+      p="9px"
+      borderRadius={c.radius.card}
+      bg={c.surfaceLight}
+      border="1px solid"
+      borderColor={c.border.subtle}
+      _hover={{ borderColor: accent }}
+      transition="border-color 0.15s"
+    >
+      <Box
+        w="34px"
+        h="34px"
+        borderRadius="full"
+        overflow="hidden"
+        flexShrink={0}
+        border="1.5px solid"
+        borderColor={accent}
+      >
+        <Image src={src} alt={host.name} w="100%" h="100%" objectFit="cover" />
+      </Box>
+      <Box flex="1">
+        <Text fontSize="sm" fontWeight={600} color={c.text.primary}>
+          {host.name}
+        </Text>
+        <Text fontFamily="mono" fontSize="2xs" color={c.text.subtle}>
+          {host.handle}
+        </Text>
+      </Box>
+      <FaXTwitter size={14} color={c.text.subtle} />
+    </HStack>
+  );
+}
+
+function AboutTab() {
+  const c = useColors();
+  return (
+    <Box>
+      <Text fontSize="sm" lineHeight={1.65} color={c.text.secondary}>
+        Market Bubble is a live markets show where Banks and Ansem break down crypto, trade ideas, and
+        the week&apos;s biggest moves — unfiltered.
+      </Text>
+      <VStack mt="14px" spacing="8px" align="stretch">
+        {ABOUT_HOSTS.map((h) => (
+          <HostRow key={h.id} host={h} />
+        ))}
+      </VStack>
+      <HStack mt="14px" spacing="7px">
+        {[
+          { label: "Twitch", icon: <FaTwitch size={15} /> },
+          { label: "Kick", icon: <SiKick size={13} /> },
+          { label: "X", icon: <FaXTwitter size={14} /> },
+        ].map((s) => (
+          <Flex
+            key={s.label}
+            align="center"
+            justify="center"
+            w="34px"
+            h="34px"
+            borderRadius={c.radius.control}
+            bg={c.overlay.soft}
+            border="1px solid"
+            borderColor={c.border.subtle}
+            color={c.text.secondary}
+            aria-label={s.label}
+          >
+            {s.icon}
+          </Flex>
+        ))}
+      </HStack>
+    </Box>
+  );
+}
+
+function MediaCard({
+  streamer,
+  title,
+  thumbnail,
+  views,
+  createdAt,
+  meta,
+  onClick,
+}: {
+  streamer: string;
+  title: string;
+  thumbnail: string;
+  views: number;
+  createdAt: string;
+  meta?: string;
+  onClick: () => void;
+}) {
+  const c = useColors();
+  const accent = streamerAccent(c, streamer);
+  return (
+    <HStack
+      as="button"
+      role="group"
+      onClick={onClick}
+      spacing="11px"
+      p="7px"
+      w="100%"
+      align="stretch"
+      textAlign="left"
+      borderRadius={c.radius.card}
+      bg={c.surfaceLight}
+      border="1px solid"
+      borderColor={c.border.subtle}
+      _hover={{ borderColor: accent }}
+      transition="border-color 0.15s"
+    >
+      <Box
+        position="relative"
+        w="116px"
+        flexShrink={0}
+        borderRadius="8px"
+        overflow="hidden"
+        bg="#000"
+        sx={{ aspectRatio: "16 / 9" }}
+      >
+        {thumbnail ? (
+          <Image src={thumbnail} alt={title} w="100%" h="100%" objectFit="cover" />
+        ) : null}
         <Flex
-          direction={{ base: "column", md: "row" }}
-          gap={{ base: "14px", md: "16px" }}
-          w="100%"
+          position="absolute"
+          inset={0}
+          align="center"
           justify="center"
-          align="stretch"
+          opacity={0}
+          bg="rgba(0,0,0,0.35)"
+          _groupHover={{ opacity: 1 }}
+          transition="opacity 0.15s"
         >
-          <PlatformTile
-            icon={<FaTwitch size="1em" />}
-            name="Twitch"
-            total={v?.twitch ?? null}
-            color={c.platform.twitch}
-            rows={streamers.map((s) => ({
-              name: s.name,
-              value: s.twitch,
-              color: accent(s.id),
-              img: STREAMER_IMG[s.id] || "",
-            }))}
-          />
-          <PlatformTile
-            icon={<SiKick size="1em" />}
-            name="Kick"
-            total={v?.kick ?? null}
-            color={c.platform.kick}
-            rows={streamers.map((s) => ({
-              name: s.name,
-              value: s.kick,
-              color: accent(s.id),
-              img: STREAMER_IMG[s.id] || "",
-            }))}
-          />
-          <TotalTile total={v?.total ?? null} site={v?.site ?? null} peak={v?.peak ?? null} />
+          <LuPlay size={20} color="#fff" />
         </Flex>
-      </FitScale>
-    </Card>
+      </Box>
+      <Box flex="1" minW={0} display="flex" flexDirection="column" justifyContent="space-between">
+        <Text
+          fontSize="xs"
+          fontWeight={600}
+          color={c.text.primary}
+          noOfLines={2}
+          lineHeight={1.3}
+        >
+          {title}
+        </Text>
+        <HStack spacing="8px" mt="5px" color={c.text.subtle} fontSize="2xs">
+          <Text color={accent} fontWeight={600}>
+            {STREAMER_NAME[streamer] || streamer}
+          </Text>
+          <HStack spacing="3px">
+            <LuEye size={11} />
+            <Text>{fmtViews(views)}</Text>
+          </HStack>
+          {meta ? <Text>{meta}</Text> : null}
+          <Text>{ago(createdAt)}</Text>
+        </HStack>
+      </Box>
+    </HStack>
+  );
+}
+
+function clipDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function MediaList({
+  kind,
+  onOpen,
+}: {
+  kind: "clips" | "broadcasts";
+  onOpen: (m: ActiveMedia) => void;
+}) {
+  const c = useColors();
+  const stats = useStats();
+  const empty = (
+    <Text fontFamily="mono" fontSize="xs" color={c.text.subtle}>
+      {kind === "clips" ? "No clips yet." : "No recent broadcasts available."}
+    </Text>
+  );
+  if (!stats) return empty;
+  if (kind === "clips") {
+    const clips = stats.media?.clips ?? [];
+    if (clips.length === 0) return empty;
+    return (
+      <VStack spacing="8px" align="stretch">
+        {clips.map((cl: MediaClip) => (
+          <MediaCard
+            key={cl.id}
+            streamer={cl.streamer}
+            title={cl.title}
+            thumbnail={cl.thumbnail}
+            views={cl.views}
+            createdAt={cl.createdAt}
+            meta={clipDuration(cl.duration)}
+            onClick={() => onOpen({ kind: "clip", id: cl.id, title: cl.title, url: cl.url })}
+          />
+        ))}
+      </VStack>
+    );
+  }
+  const vids = stats.media?.broadcasts ?? [];
+  if (vids.length === 0) return empty;
+  return (
+    <VStack spacing="8px" align="stretch">
+      {vids.map((v: MediaVideo) => (
+        <MediaCard
+          key={v.id}
+          streamer={v.streamer}
+          title={v.title}
+          thumbnail={v.thumbnail}
+          views={v.views}
+          createdAt={v.createdAt}
+          onClick={() => onOpen({ kind: "video", id: v.id, title: v.title, url: v.url })}
+        />
+      ))}
+    </VStack>
+  );
+}
+
+function MediaPlayer({ media, onClose }: { media: ActiveMedia; onClose: () => void }) {
+  const c = useColors();
+  const host = useHost();
+  const src =
+    media.kind === "clip"
+      ? `https://clips.twitch.tv/embed?clip=${media.id}&parent=${host}&autoplay=true`
+      : `https://player.twitch.tv/?video=${media.id}&parent=${host}&autoplay=true`;
+  return (
+    <Flex
+      position="fixed"
+      inset={0}
+      zIndex={3000}
+      bg="rgba(0,0,0,0.82)"
+      align="center"
+      justify="center"
+      p="20px"
+      onClick={onClose}
+    >
+      <Box w="min(920px, 94vw)" onClick={(e) => e.stopPropagation()}>
+        <Flex justify="space-between" align="center" mb="10px" gap="12px">
+          <Text fontSize="sm" fontWeight={600} color="#fff" noOfLines={1}>
+            {media.title}
+          </Text>
+          <HStack spacing="10px" flexShrink={0}>
+            <HStack
+              as="a"
+              href={media.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              spacing="4px"
+              fontSize="2xs"
+              fontFamily="mono"
+              color="rgba(255,255,255,0.7)"
+              _hover={{ color: "#fff" }}
+            >
+              <LuExternalLink size={12} />
+              <Text>TWITCH</Text>
+            </HStack>
+            <Box
+              as="button"
+              onClick={onClose}
+              color="rgba(255,255,255,0.7)"
+              _hover={{ color: "#fff" }}
+              aria-label="Close"
+            >
+              <LuX size={20} />
+            </Box>
+          </HStack>
+        </Flex>
+        <Box
+          position="relative"
+          w="100%"
+          borderRadius={c.radius.card}
+          overflow="hidden"
+          bg="#000"
+          sx={{ aspectRatio: "16 / 9" }}
+        >
+          {host ? (
+            <iframe
+              src={src}
+              allowFullScreen
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
+            />
+          ) : null}
+        </Box>
+      </Box>
+    </Flex>
+  );
+}
+
+type AudienceTabKey = "audience" | "about" | "history" | "clips";
+
+export function AudienceBox() {
+  const c = useColors();
+  const [tab, setTab] = useState<AudienceTabKey>("audience");
+  const [active, setActive] = useState<ActiveMedia | null>(null);
+  return (
+    <Box
+      bg={c.surface}
+      border="1px solid"
+      borderColor={c.border.subtle}
+      borderRadius={c.radius.panel}
+      boxShadow={c.shadow.soft}
+      p="16px"
+      h="100%"
+      minH={0}
+      display="flex"
+      flexDirection="column"
+    >
+      <HStack
+        spacing="2px"
+        bg={c.overlay.soft}
+        borderRadius={c.radius.control}
+        p="3px"
+        mb="14px"
+        flexShrink={0}
+        alignSelf="flex-start"
+      >
+        <TabButton active={tab === "audience"} onClick={() => setTab("audience")}>
+          AUDIENCE
+        </TabButton>
+        <TabButton active={tab === "about"} onClick={() => setTab("about")}>
+          ABOUT
+        </TabButton>
+        <TabButton active={tab === "history"} onClick={() => setTab("history")}>
+          HISTORY
+        </TabButton>
+        <TabButton active={tab === "clips"} onClick={() => setTab("clips")}>
+          CLIPS
+        </TabButton>
+      </HStack>
+      <Box flex="1" minH={0} overflowY={tab === "audience" ? "hidden" : "auto"}>
+        {tab === "audience" && <AudienceTab />}
+        {tab === "about" && <AboutTab />}
+        {tab === "history" && <MediaList kind="broadcasts" onOpen={setActive} />}
+        {tab === "clips" && <MediaList kind="clips" onOpen={setActive} />}
+      </Box>
+      {active ? <MediaPlayer media={active} onClose={() => setActive(null)} /> : null}
+    </Box>
   );
 }

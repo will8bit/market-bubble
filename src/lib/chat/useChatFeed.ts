@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ChatMessage } from "./types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChatMessage, StreamerId, Platform, colorFor, extractCashtags } from "./types";
 import { subscribeWorker, workerSocketEnabled, type SentMarker } from "./workerSocket";
 import { connectTwitch } from "./twitchClient";
 import { connectKick } from "./kickClient";
@@ -130,5 +130,52 @@ export function useChatFeed(paused: boolean) {
     };
   }, []);
 
-  return messages;
+  const echoSelf = useCallback(
+    (p: {
+      authorName: string;
+      handles: { twitch?: string; kick?: string };
+      text: string;
+      channels: { streamer: StreamerId; platform: Platform }[];
+      global: boolean;
+    }): string => {
+      const at = Date.now();
+      const markerId = `self-${at}-${Math.random().toString(36).slice(2, 8)}`;
+      markersRef.current.push({
+        id: markerId,
+        handles: p.handles,
+        text: p.text,
+        channels: p.channels,
+        global: p.global,
+        at,
+      });
+      keptRef.current.add(markerId);
+      const id = `local-${at}-${Math.random().toString(36).slice(2, 8)}`;
+      const first = p.channels[0];
+      const msg: ChatMessage = {
+        id,
+        platform: first?.platform ?? "twitch",
+        streamer: first?.streamer ?? "banks",
+        author: { name: p.authorName, color: colorFor(p.authorName), badges: [] },
+        text: p.text,
+        cashtags: extractCashtags(p.text),
+        isMod: false,
+        isSub: false,
+        isBroadcaster: false,
+        timestamp: at,
+        multi: p.channels.length > 1 ? { channels: p.channels, global: p.global } : undefined,
+      };
+      setMessages((prev) => {
+        const next = [...prev, msg];
+        return next.length > MAX_BUFFER ? next.slice(next.length - MAX_BUFFER) : next;
+      });
+      return id;
+    },
+    []
+  );
+
+  const removeLocal = useCallback((id: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+  }, []);
+
+  return { messages, echoSelf, removeLocal };
 }

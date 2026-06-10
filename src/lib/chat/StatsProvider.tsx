@@ -10,6 +10,29 @@ export interface MarketQuote {
   spark: number[];
 }
 
+export interface MediaClip {
+  id: string;
+  streamer: string;
+  title: string;
+  thumbnail: string;
+  url: string;
+  views: number;
+  duration: number;
+  createdAt: string;
+  creator: string;
+}
+
+export interface MediaVideo {
+  id: string;
+  streamer: string;
+  title: string;
+  thumbnail: string;
+  url: string;
+  duration: string;
+  createdAt: string;
+  views: number;
+}
+
 export interface Stats {
   viewers: {
     twitch: number | null;
@@ -29,6 +52,10 @@ export interface Stats {
   markets: {
     crypto: MarketQuote[];
     polymarket: { question: string; yes: number; no: number; endDate: string }[];
+  };
+  media?: {
+    clips: MediaClip[];
+    broadcasts: MediaVideo[];
   };
 }
 

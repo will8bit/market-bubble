@@ -4,7 +4,7 @@ const UA =
 let twitchToken = "";
 let twitchTokenExp = 0;
 
-async function twitchAppToken(): Promise<string> {
+export async function twitchAppToken(): Promise<string> {
   const id = process.env.TWITCH_CLIENT_ID || "";
   const secret = process.env.TWITCH_CLIENT_SECRET || "";
   if (!id || !secret) return "";
