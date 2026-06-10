@@ -526,7 +526,7 @@ const ChatRow = memo(function ChatRow({
             {msg.multi ? <LuGlobe size={11} /> : platformIcon(msg.platform)}
           </Box>
         )}
-        {showAvatars && (
+        {showAvatars && !msg.multi && (
           <Box as="span" display="inline-flex" verticalAlign="middle" mr="6px">
             <Image
               src={STREAMER_IMG[msg.streamer]}

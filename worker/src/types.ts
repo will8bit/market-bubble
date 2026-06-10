@@ -22,6 +22,7 @@ export interface ChatMessage {
   isSub: boolean;
   isBroadcaster: boolean;
   timestamp: number;
+  multi?: { channels: { streamer: StreamerId; platform: Platform }[]; global: boolean };
 }
 
 export interface StreamerConfig {
