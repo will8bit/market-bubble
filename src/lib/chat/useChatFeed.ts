@@ -13,7 +13,7 @@ const FALLBACK_WINDOW = 4000;
 
 function matchesMarker(msg: ChatMessage, mk: SentMarker): boolean {
   if (msg.platform !== "twitch" && msg.platform !== "kick") return false;
-  if (Math.abs(msg.timestamp - mk.at) > MARKER_WINDOW) return false;
+  if (msg.timestamp < mk.at - 2000 || msg.timestamp > mk.at + MARKER_WINDOW) return false;
   if (mk.text.trim() !== msg.text.trim()) return false;
   const handle = mk.handles[msg.platform];
   if (!handle || handle.toLowerCase() !== msg.author.name.toLowerCase()) return false;
