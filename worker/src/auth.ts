@@ -340,8 +340,12 @@ async function sendTwitch(account: Account, login: string, message: string): Pro
       },
       body: JSON.stringify({ broadcaster_id: broadcasterId, sender_id: account.userId, message }),
     });
-    if (r.status === 401) return { ok: false, error: "Twitch session expired — reconnect" };
-    if (!r.ok) return { ok: false, error: "Twitch rejected the message" };
+    if (!r.ok) {
+      const body = (await r.json().catch(() => null)) as { message?: string; error?: string } | null;
+      const detail = body?.message || body?.error || `status ${r.status}`;
+      if (r.status === 401) return { ok: false, error: `Twitch auth — reconnect (${detail})` };
+      return { ok: false, error: `Twitch: ${detail}` };
+    }
     const d = (await r.json().catch(() => null)) as {
       data?: Array<{ is_sent?: boolean; drop_reason?: { message?: string } | null }>;
     } | null;
@@ -368,8 +372,12 @@ async function sendKick(account: Account, slug: string, message: string): Promis
       },
       body: JSON.stringify({ broadcaster_user_id: id, content: message, type: "user" }),
     });
-    if (r.status === 401) return { ok: false, error: "Kick session expired — reconnect" };
-    if (!r.ok) return { ok: false, error: "Kick rejected the message" };
+    if (!r.ok) {
+      const body = (await r.json().catch(() => null)) as { message?: string; error?: string } | null;
+      const detail = body?.message || body?.error || `status ${r.status}`;
+      if (r.status === 401) return { ok: false, error: `Kick auth — reconnect (${detail})` };
+      return { ok: false, error: `Kick: ${detail}` };
+    }
     return { ok: true };
   } catch {
     return { ok: false, error: "Kick send failed" };
