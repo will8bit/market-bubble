@@ -97,24 +97,30 @@ async function fetchClips(
   token: string
 ): Promise<RawClip[]> {
   const headers = { "Client-Id": clientId, authorization: `Bearer ${token}` };
-  const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-  try {
-    let res = await fetch(
-      `https://api.twitch.tv/helix/clips?broadcaster_id=${broadcasterId}&first=20&started_at=${since}`,
-      { headers }
-    );
-    let d = res.ok ? ((await res.json()) as { data?: RawClip[] }) : { data: [] };
-    if (!d.data || d.data.length === 0) {
-      res = await fetch(
-        `https://api.twitch.tv/helix/clips?broadcaster_id=${broadcasterId}&first=20`,
+  for (const days of [7, 30]) {
+    const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
+    try {
+      const res = await fetch(
+        `https://api.twitch.tv/helix/clips?broadcaster_id=${broadcasterId}&first=20&started_at=${since}`,
         { headers }
       );
-      d = res.ok ? ((await res.json()) as { data?: RawClip[] }) : { data: [] };
-    }
-    return d.data || [];
-  } catch {
-    return [];
+      if (res.ok) {
+        const d = (await res.json()) as { data?: RawClip[] };
+        if (d.data && d.data.length > 0) return d.data;
+      }
+    } catch {}
   }
+  try {
+    const res = await fetch(
+      `https://api.twitch.tv/helix/clips?broadcaster_id=${broadcasterId}&first=20`,
+      { headers }
+    );
+    if (res.ok) {
+      const d = (await res.json()) as { data?: RawClip[] };
+      return d.data || [];
+    }
+  } catch {}
+  return [];
 }
 
 async function fetchVideos(

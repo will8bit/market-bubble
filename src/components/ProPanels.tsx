@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Box, Flex, HStack, Image, Text, VStack, type BoxProps } from "@chakra-ui/react";
 import { FaTwitch, FaXTwitter } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
-import { LuCalendar, LuPlay, LuX, LuExternalLink, LuEye } from "react-icons/lu";
+import { LuCalendar, LuX, LuExternalLink, LuEye } from "react-icons/lu";
 import { useStats, type MarketQuote, type MediaClip, type MediaVideo } from "@/lib/chat/StatsProvider";
 import { useAvatar } from "@/lib/avatars";
 import { useColors } from "@/theme/useColors";
@@ -632,6 +632,8 @@ function TotalTile({
 
 const STREAMER_NAME: Record<string, string> = { banks: "Banks", ansem: "Ansem" };
 
+const PANEL_CONTENT_MAX = "1052px";
+
 function streamerAccent(c: ReturnType<typeof useColors>, id: string) {
   return id === "banks" ? c.streamer.banks : c.streamer.ansem;
 }
@@ -725,8 +727,8 @@ function HostRow({ host }: { host: (typeof ABOUT_HOSTS)[number] }) {
       bg={c.surfaceLight}
       border="1px solid"
       borderColor={c.border.subtle}
-      _hover={{ borderColor: accent }}
-      transition="border-color 0.15s"
+      _hover={{ bg: c.surfaceRaised }}
+      transition="background-color 0.15s"
     >
       <Box
         w="34px"
@@ -755,8 +757,8 @@ function HostRow({ host }: { host: (typeof ABOUT_HOSTS)[number] }) {
 function AboutTab() {
   const c = useColors();
   return (
-    <Box>
-      <Text fontSize="sm" lineHeight={1.65} color={c.text.secondary}>
+    <Box maxW={PANEL_CONTENT_MAX} mx="auto" w="100%">
+      <Text fontSize="sm" lineHeight={1.65} color={c.text.secondary} maxW="640px">
         Market Bubble is a live markets show where Banks and Ansem break down crypto, trade ideas, and
         the week&apos;s biggest moves — unfiltered.
       </Text>
@@ -792,89 +794,112 @@ function AboutTab() {
   );
 }
 
-function MediaCard({
-  streamer,
+function ThumbBadge({ children, ...pos }: { children: React.ReactNode } & BoxProps) {
+  return (
+    <Box
+      position="absolute"
+      bg="rgba(0,0,0,0.82)"
+      color="#fff"
+      fontFamily="mono"
+      fontSize="12px"
+      lineHeight="1"
+      px="7px"
+      py="4px"
+      borderRadius="5px"
+      display="flex"
+      alignItems="center"
+      gap="4px"
+      pointerEvents="none"
+      {...pos}
+    >
+      {children}
+    </Box>
+  );
+}
+
+function MediaThumb({
   title,
   thumbnail,
   views,
   createdAt,
-  meta,
+  duration,
   onClick,
 }: {
-  streamer: string;
   title: string;
   thumbnail: string;
   views: number;
   createdAt: string;
-  meta?: string;
+  duration: string;
   onClick: () => void;
 }) {
-  const c = useColors();
-  const accent = streamerAccent(c, streamer);
   return (
-    <HStack
+    <Box
       as="button"
-      role="group"
       onClick={onClick}
-      spacing="11px"
-      p="7px"
+      title={title}
+      display="block"
+      position="relative"
       w="100%"
-      align="stretch"
-      textAlign="left"
-      borderRadius={c.radius.card}
-      bg={c.surfaceLight}
-      border="1px solid"
-      borderColor={c.border.subtle}
-      _hover={{ borderColor: accent }}
-      transition="border-color 0.15s"
+      borderRadius="8px"
+      overflow="hidden"
+      bg="#000"
+      sx={{ aspectRatio: "16 / 9" }}
+      _hover={{ opacity: 0.85 }}
+      transition="opacity 0.15s"
     >
-      <Box
-        position="relative"
-        w="116px"
-        flexShrink={0}
-        borderRadius="8px"
-        overflow="hidden"
-        bg="#000"
-        sx={{ aspectRatio: "16 / 9" }}
-      >
-        {thumbnail ? (
-          <Image src={thumbnail} alt={title} w="100%" h="100%" objectFit="cover" />
-        ) : null}
-        <Flex
-          position="absolute"
-          inset={0}
-          align="center"
-          justify="center"
-          opacity={0}
-          bg="rgba(0,0,0,0.35)"
-          _groupHover={{ opacity: 1 }}
-          transition="opacity 0.15s"
-        >
-          <LuPlay size={20} color="#fff" />
-        </Flex>
-      </Box>
-      <Box flex="1" minW={0} display="flex" flexDirection="column" justifyContent="space-between">
-        <Text
-          fontSize="xs"
-          fontWeight={600}
-          color={c.text.primary}
-          noOfLines={2}
-          lineHeight={1.3}
-        >
-          {title}
-        </Text>
-        <HStack spacing="8px" mt="5px" color={c.text.subtle} fontSize="2xs">
-          <Text color={accent} fontWeight={600}>
-            {STREAMER_NAME[streamer] || streamer}
-          </Text>
-          <HStack spacing="3px">
-            <LuEye size={11} />
-            <Text>{fmtViews(views)}</Text>
-          </HStack>
-          {meta ? <Text>{meta}</Text> : null}
-          <Text>{ago(createdAt)}</Text>
-        </HStack>
-      </Box>
+      {thumbnail ? <Image src={thumbnail} alt={title} w="100%" h="100%" objectFit="cover" /> : null}
+      {duration ? (
+        <ThumbBadge top="5px" left="5px">
+          {duration}
+        </ThumbBadge>
+      ) : null}
+      <ThumbBadge bottom="5px" left="5px">
+        <LuEye size={12} />
+        {fmtViews(views)}
+      </ThumbBadge>
+      {createdAt ? (
+        <ThumbBadge bottom="5px" right="5px">
+          {ago(createdAt)}
+        </ThumbBadge>
+      ) : null}
+    </Box>
+  );
+}
+
+function FilterPills({
+  options,
+  value,
+  onChange,
+}: {
+  options: { id: string; label: string }[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const c = useColors();
+  return (
+    <HStack spacing="6px" mb="12px" flexShrink={0}>
+      {options.map((o) => {
+        const on = value === o.id;
+        return (
+          <Box
+            as="button"
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            px="11px"
+            py="4px"
+            borderRadius="full"
+            fontFamily="mono"
+            fontSize="2xs"
+            letterSpacing="0.08em"
+            bg={on ? c.overlay.strong : c.overlay.soft}
+            color={on ? c.text.primary : c.text.muted}
+            _hover={{ color: c.text.primary }}
+            transition="color 0.15s"
+          >
+            {o.label}
+          </Box>
+        );
+      })}
     </HStack>
   );
 }
@@ -885,6 +910,26 @@ function clipDuration(sec: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function fmtVodDuration(s: string): string {
+  if (!s) return "";
+  const h = Number(/(\d+)h/.exec(s)?.[1] || 0);
+  const m = Number(/(\d+)m/.exec(s)?.[1] || 0);
+  const sec = Number(/(\d+)s/.exec(s)?.[1] || 0);
+  if (h) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+type MediaItem = {
+  id: string;
+  streamer: string;
+  title: string;
+  thumbnail: string;
+  views: number;
+  createdAt: string;
+  duration: string;
+  media: ActiveMedia;
+};
+
 function MediaList({
   kind,
   onOpen,
@@ -894,48 +939,70 @@ function MediaList({
 }) {
   const c = useColors();
   const stats = useStats();
-  const empty = (
-    <Text fontFamily="mono" fontSize="xs" color={c.text.subtle}>
-      {kind === "clips" ? "No clips yet." : "No recent broadcasts available."}
-    </Text>
-  );
-  if (!stats) return empty;
-  if (kind === "clips") {
-    const clips = stats.media?.clips ?? [];
-    if (clips.length === 0) return empty;
-    return (
-      <VStack spacing="8px" align="stretch">
-        {clips.map((cl: MediaClip) => (
-          <MediaCard
-            key={cl.id}
-            streamer={cl.streamer}
-            title={cl.title}
-            thumbnail={cl.thumbnail}
-            views={cl.views}
-            createdAt={cl.createdAt}
-            meta={clipDuration(cl.duration)}
-            onClick={() => onOpen({ kind: "clip", id: cl.id, title: cl.title, url: cl.url })}
-          />
-        ))}
-      </VStack>
-    );
-  }
-  const vids = stats.media?.broadcasts ?? [];
-  if (vids.length === 0) return empty;
+  const [filter, setFilter] = useState("all");
+
+  const items: MediaItem[] =
+    kind === "clips"
+      ? (stats?.media?.clips ?? []).map((cl: MediaClip) => ({
+          id: cl.id,
+          streamer: cl.streamer,
+          title: cl.title,
+          thumbnail: cl.thumbnail,
+          views: cl.views,
+          createdAt: cl.createdAt,
+          duration: clipDuration(cl.duration),
+          media: { kind: "clip", id: cl.id, title: cl.title, url: cl.url },
+        }))
+      : (stats?.media?.broadcasts ?? []).map((v: MediaVideo) => ({
+          id: v.id,
+          streamer: v.streamer,
+          title: v.title,
+          thumbnail: v.thumbnail,
+          views: v.views,
+          createdAt: v.createdAt,
+          duration: fmtVodDuration(v.duration),
+          media: { kind: "video", id: v.id, title: v.title, url: v.url },
+        }));
+
+  const streamerIds = Array.from(new Set(items.map((i) => i.streamer)));
+  const shown = filter === "all" ? items : items.filter((i) => i.streamer === filter);
+
   return (
-    <VStack spacing="8px" align="stretch">
-      {vids.map((v: MediaVideo) => (
-        <MediaCard
-          key={v.id}
-          streamer={v.streamer}
-          title={v.title}
-          thumbnail={v.thumbnail}
-          views={v.views}
-          createdAt={v.createdAt}
-          onClick={() => onOpen({ kind: "video", id: v.id, title: v.title, url: v.url })}
+    <Box maxW={PANEL_CONTENT_MAX} mx="auto" w="100%">
+      {streamerIds.length > 1 ? (
+        <FilterPills
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { id: "all", label: "ALL" },
+            ...streamerIds.map((id) => ({ id, label: (STREAMER_NAME[id] || id).toUpperCase() })),
+          ]}
         />
-      ))}
-    </VStack>
+      ) : null}
+      {shown.length === 0 ? (
+        <Text fontFamily="mono" fontSize="xs" color={c.text.subtle}>
+          {kind === "clips" ? "No clips yet." : "No recent broadcasts available."}
+        </Text>
+      ) : (
+        <Box
+          display="grid"
+          gap="10px"
+          sx={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}
+        >
+          {shown.map((it) => (
+            <MediaThumb
+              key={it.id}
+              title={it.title}
+              thumbnail={it.thumbnail}
+              views={it.views}
+              createdAt={it.createdAt}
+              duration={it.duration}
+              onClick={() => onOpen(it.media)}
+            />
+          ))}
+        </Box>
+      )}
+    </Box>
   );
 }
 
