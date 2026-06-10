@@ -409,49 +409,54 @@ async function handleSend(req: IncomingMessage, res: ServerResponse, ctx?: SendC
   }
   if (targets.length === 0) return json(res, 400, { ok: false, error: "no targets" });
 
-  const results: { platform: Provider; streamer: string; ok: boolean; error?: string }[] = [];
-  for (const t of targets) {
+  const resolved = targets.map((t) => {
     const account = session[t.platform];
-    if (!account) {
-      results.push({ ...t, ok: false, error: `link ${t.platform} first` });
-      continue;
-    }
     const cfg = STREAMERS.find((s) => s.id === t.streamer);
     const channel = cfg ? (t.platform === "twitch" ? cfg.twitch : cfg.kick) : undefined;
-    if (!channel) {
-      results.push({ ...t, ok: false, error: `no ${t.platform} channel` });
-      continue;
-    }
-    const fresh = await ensureFresh(t.platform, account);
-    if (!fresh) {
-      results.push({ ...t, ok: false, error: `${t.platform} session expired — reconnect` });
-      continue;
-    }
-    const r =
-      t.platform === "twitch"
-        ? await sendTwitch(account, channel, message)
-        : await sendKick(account, channel, message);
-    results.push({ ...t, ok: r.ok, error: r.error });
-  }
+    return { platform: t.platform, streamer: t.streamer, account, channel };
+  });
 
-  const sent = results.filter((r) => r.ok);
-  if (ctx && sent.length > 1) {
-    const channels = sent.map((r) => ({ streamer: r.streamer, platform: r.platform }));
-    const available: number = STREAMERS.reduce(
-      (n, s) => n + (s.twitch ? 1 : 0) + (s.kick ? 1 : 0),
-      0
-    );
+  const intended = resolved
+    .filter((r) => r.account && r.channel)
+    .map((r) => ({ streamer: r.streamer, platform: r.platform }));
+
+  if (ctx && intended.length > 1) {
+    const available = STREAMERS.reduce((n, s) => n + (s.twitch ? 1 : 0) + (s.kick ? 1 : 0), 0);
     ctx.broadcastSent({
       id: rand(),
       handles: { twitch: session.twitch?.username, kick: session.kick?.username },
       text: message,
-      channels,
-      global: channels.length >= available,
+      channels: intended,
+      global: intended.length >= available,
       at: Date.now(),
     });
   }
 
-  json(res, sent.length > 0 ? 200 : 400, { ok: sent.length > 0, results });
+  const results: { platform: Provider; streamer: string; ok: boolean; error?: string }[] = [];
+  for (const r of resolved) {
+    const { account, channel, platform, streamer } = r;
+    if (!account) {
+      results.push({ platform, streamer, ok: false, error: `link ${platform} first` });
+      continue;
+    }
+    if (!channel) {
+      results.push({ platform, streamer, ok: false, error: `no ${platform} channel` });
+      continue;
+    }
+    const fresh = await ensureFresh(platform, account);
+    if (!fresh) {
+      results.push({ platform, streamer, ok: false, error: `${platform} session expired — reconnect` });
+      continue;
+    }
+    const sr =
+      platform === "twitch"
+        ? await sendTwitch(account, channel, message)
+        : await sendKick(account, channel, message);
+    results.push({ platform, streamer, ok: sr.ok, error: sr.error });
+  }
+
+  const anyOk = results.some((r) => r.ok);
+  json(res, anyOk ? 200 : 400, { ok: anyOk, results });
 }
 
 export async function handleAuthRequest(
