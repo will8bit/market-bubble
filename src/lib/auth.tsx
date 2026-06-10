@@ -15,6 +15,12 @@ export interface LinkedAccount {
 export interface SendResult {
   ok: boolean;
   error?: string;
+  results?: { platform: string; streamer: string; ok: boolean; error?: string }[];
+}
+
+export interface SendTarget {
+  platform: Provider;
+  streamer: string;
 }
 
 interface AuthState {
@@ -25,7 +31,7 @@ interface AuthState {
   login: (provider: Provider) => void;
   unlink: (provider: Provider) => void;
   logout: () => void;
-  send: (platform: Provider, streamer: string, message: string) => Promise<SendResult>;
+  send: (targets: SendTarget[], message: string) => Promise<SendResult>;
 }
 
 const Context = createContext<AuthState>({
@@ -141,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const send = useCallback(
-    async (platform: Provider, streamer: string, message: string): Promise<SendResult> => {
+    async (targets: SendTarget[], message: string): Promise<SendResult> => {
       if (!WORKER) return { ok: false, error: "not configured" };
       const session = getSession();
       if (!session) return { ok: false, error: "not signed in" };
@@ -149,11 +155,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch(`${WORKER}/chat/send`, {
           method: "POST",
           headers: { authorization: `Bearer ${session}`, "content-type": "application/json" },
-          body: JSON.stringify({ platform, streamer, message }),
+          body: JSON.stringify({ targets, message }),
         });
-        const d = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-        if (!res.ok || d.ok === false) return { ok: false, error: d.error || `failed (${res.status})` };
-        return { ok: true };
+        const d = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          results?: { platform: string; streamer: string; ok: boolean; error?: string }[];
+        };
+        if (!res.ok || d.ok === false) {
+          const firstErr = d.results?.find((r) => !r.ok)?.error;
+          return { ok: false, error: d.error || firstErr || `failed (${res.status})`, results: d.results };
+        }
+        return { ok: true, results: d.results };
       } catch {
         return { ok: false, error: "network error" };
       }

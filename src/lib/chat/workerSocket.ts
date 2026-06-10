@@ -1,15 +1,25 @@
 "use client";
 
-import { ChatMessage } from "./types";
+import { ChatMessage, Platform, StreamerId } from "./types";
 
 const WS_URL = process.env.NEXT_PUBLIC_X_WS_URL || "";
 
 export const workerSocketEnabled = Boolean(WS_URL);
 
+export interface SentMarker {
+  id: string;
+  handles: { twitch?: string; kick?: string };
+  text: string;
+  channels: { streamer: StreamerId; platform: Platform }[];
+  global: boolean;
+  at: number;
+}
+
 export type WorkerFrame =
   | { t: "backfill"; messages: ChatMessage[] }
   | { t: "msgs"; messages: ChatMessage[] }
-  | { t: "stats"; stats: unknown };
+  | { t: "stats"; stats: unknown }
+  | ({ t: "sent" } & SentMarker);
 
 type Handler = (frame: WorkerFrame) => void;
 

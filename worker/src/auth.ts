@@ -384,44 +384,80 @@ async function sendKick(account: Account, slug: string, message: string): Promis
   }
 }
 
-async function handleSend(req: IncomingMessage, res: ServerResponse) {
+interface SendCtx {
+  broadcastSent: (marker: Record<string, unknown>) => void;
+}
+
+async function handleSend(req: IncomingMessage, res: ServerResponse, ctx?: SendCtx) {
   if (req.method !== "POST") {
     json(res, 405, { ok: false, error: "method not allowed" });
     return;
   }
   const session = getSession(req);
   const body = await readJson(req);
-  const platform = body.platform === "twitch" || body.platform === "kick" ? body.platform : null;
-  const streamerId = typeof body.streamer === "string" ? body.streamer : "";
   const message = (typeof body.message === "string" ? body.message : "").trim();
+  const rawTargets = Array.isArray(body.targets) ? body.targets : [];
 
   if (!session) return json(res, 401, { ok: false, error: "not signed in" });
-  if (!platform) return json(res, 400, { ok: false, error: "bad platform" });
   if (!message) return json(res, 400, { ok: false, error: "empty message" });
 
-  const account = session[platform];
-  if (!account) return json(res, 400, { ok: false, error: `link ${platform} first` });
-
-  const cfg = STREAMERS.find((s) => s.id === streamerId);
-  if (!cfg) return json(res, 400, { ok: false, error: "unknown streamer" });
-
-  const fresh = await ensureFresh(platform, account);
-  if (!fresh) return json(res, 401, { ok: false, error: `${platform} session expired — reconnect` });
-
-  let result: SendResult;
-  if (platform === "twitch") {
-    if (!cfg.twitch) return json(res, 400, { ok: false, error: "no Twitch channel for this streamer" });
-    result = await sendTwitch(account, cfg.twitch, message);
-  } else {
-    if (!cfg.kick) return json(res, 400, { ok: false, error: "no Kick channel for this streamer" });
-    result = await sendKick(account, cfg.kick, message);
+  const targets: { platform: Provider; streamer: string }[] = [];
+  for (const t of rawTargets as Array<{ platform?: unknown; streamer?: unknown }>) {
+    const platform = t.platform === "twitch" || t.platform === "kick" ? t.platform : null;
+    const streamer = typeof t.streamer === "string" ? t.streamer : "";
+    if (platform && streamer) targets.push({ platform, streamer });
   }
-  json(res, result.ok ? 200 : 400, result);
+  if (targets.length === 0) return json(res, 400, { ok: false, error: "no targets" });
+
+  const results: { platform: Provider; streamer: string; ok: boolean; error?: string }[] = [];
+  for (const t of targets) {
+    const account = session[t.platform];
+    if (!account) {
+      results.push({ ...t, ok: false, error: `link ${t.platform} first` });
+      continue;
+    }
+    const cfg = STREAMERS.find((s) => s.id === t.streamer);
+    const channel = cfg ? (t.platform === "twitch" ? cfg.twitch : cfg.kick) : undefined;
+    if (!channel) {
+      results.push({ ...t, ok: false, error: `no ${t.platform} channel` });
+      continue;
+    }
+    const fresh = await ensureFresh(t.platform, account);
+    if (!fresh) {
+      results.push({ ...t, ok: false, error: `${t.platform} session expired — reconnect` });
+      continue;
+    }
+    const r =
+      t.platform === "twitch"
+        ? await sendTwitch(account, channel, message)
+        : await sendKick(account, channel, message);
+    results.push({ ...t, ok: r.ok, error: r.error });
+  }
+
+  const sent = results.filter((r) => r.ok);
+  if (ctx && sent.length > 1) {
+    const channels = sent.map((r) => ({ streamer: r.streamer, platform: r.platform }));
+    const available: number = STREAMERS.reduce(
+      (n, s) => n + (s.twitch ? 1 : 0) + (s.kick ? 1 : 0),
+      0
+    );
+    ctx.broadcastSent({
+      id: rand(),
+      handles: { twitch: session.twitch?.username, kick: session.kick?.username },
+      text: message,
+      channels,
+      global: channels.length >= available,
+      at: Date.now(),
+    });
+  }
+
+  json(res, sent.length > 0 ? 200 : 400, { ok: sent.length > 0, results });
 }
 
 export async function handleAuthRequest(
   req: IncomingMessage,
-  res: ServerResponse
+  res: ServerResponse,
+  ctx?: SendCtx
 ): Promise<boolean> {
   const url = new URL(req.url || "/", "http://localhost");
   const path = url.pathname;
@@ -435,7 +471,7 @@ export async function handleAuthRequest(
   }
 
   if (path === "/chat/send") {
-    await handleSend(req, res);
+    await handleSend(req, res, ctx);
     return true;
   }
 

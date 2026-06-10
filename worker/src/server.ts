@@ -4,7 +4,7 @@ import { ChatMessage } from "./types";
 import { handleAuthRequest } from "./auth";
 
 const FLUSH_MS = 250;
-const RECENT_LIMIT = 50;
+const RECENT_LIMIT = 100;
 
 export interface FanoutServer {
   broadcast(msg: ChatMessage): void;
@@ -16,7 +16,7 @@ export interface FanoutServer {
 
 export function createFanoutServer(port: number): FanoutServer {
   const http = createServer((req, res) => {
-    handleAuthRequest(req, res)
+    handleAuthRequest(req, res, { broadcastSent })
       .then((handled) => {
         if (handled) return;
         res.writeHead(200, { "content-type": "text/plain" });
@@ -71,6 +71,17 @@ export function createFanoutServer(port: number): FanoutServer {
   function addRecent(msg: ChatMessage) {
     recent.push(msg);
     if (recent.length > RECENT_LIMIT) recent = recent.slice(recent.length - RECENT_LIMIT);
+  }
+
+  function broadcastSent(marker: Record<string, unknown>) {
+    const payload = JSON.stringify({ t: "sent", ...marker });
+    for (const ws of clients) {
+      if (ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(payload);
+        } catch {}
+      }
+    }
   }
 
   return {

@@ -391,7 +391,7 @@ function FitScale({ children }: { children: React.ReactNode }) {
       ref={outerRef}
       h="100%"
       display="flex"
-      alignItems="center"
+      alignItems="flex-start"
       justifyContent="center"
       overflow="hidden"
     >

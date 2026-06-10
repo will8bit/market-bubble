@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { Box, Flex, HStack, Input, SimpleGrid, Text } from "@chakra-ui/react";
 import { FaTwitch } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
-import { LuChevronUp, LuCheck, LuGlobe, LuSmile } from "react-icons/lu";
+import { LuChevronUp, LuCheck, LuGlobe, LuSmile, LuSettings } from "react-icons/lu";
 import { Platform, StreamerId, STREAMERS } from "@/lib/chat/types";
 import { useAuth, type Provider } from "@/lib/auth";
 import { useColors } from "@/theme/useColors";
 
-const PLATS: Provider[] = ["twitch", "kick"];
+const SEND_PLATFORMS: Provider[] = ["twitch", "kick"];
+const ALL_PLATFORMS: Platform[] = ["twitch", "kick", "x"];
 
 const EMOJIS = [
   "😂", "🔥", "💀", "😭", "🚀", "📈", "📉", "💎",
@@ -18,54 +19,117 @@ const EMOJIS = [
   "🥳", "😤", "🧠", "👑", "🤡", "😮", "🙏", "💪",
 ];
 
-function PlatIcon({ p }: { p: Provider }) {
-  if (p === "twitch") return <FaTwitch size={12} />;
-  return <SiKick size={11} />;
+function PlatIcon({ p, size = 12 }: { p: Provider; size?: number }) {
+  if (p === "twitch") return <FaTwitch size={size} />;
+  return <SiKick size={size - 1} />;
+}
+function plabel(p: Provider) {
+  return p === "twitch" ? "Twitch" : "Kick";
 }
 
 export function ChatComposer({
   platforms,
   streamers,
+  setPlatforms,
+  setStreamers,
+  settingsOpen = false,
+  onSettings,
 }: {
   platforms: Set<Platform>;
   streamers: Set<StreamerId>;
+  setPlatforms: Dispatch<SetStateAction<Set<Platform>>>;
+  setStreamers: Dispatch<SetStateAction<Set<StreamerId>>>;
+  settingsOpen?: boolean;
+  onSettings?: () => void;
 }) {
   const c = useColors();
   const { twitch, kick, login, send } = useAuth();
-
-  const linked = useMemo<Provider[]>(() => {
-    const out: Provider[] = [];
-    if (twitch) out.push("twitch");
-    if (kick) out.push("kick");
-    return out;
-  }, [twitch, kick]);
-
-  const defaultStreamer = useMemo<StreamerId>(() => {
-    const sel = STREAMERS.filter((s) => streamers.has(s.id));
-    return (sel.length === 1 ? sel[0].id : STREAMERS[0]?.id) as StreamerId;
-  }, [streamers]);
-
-  const defaultPlatform = useMemo<Provider | null>(() => {
-    const inFilter = linked.filter((p) => platforms.has(p));
-    if (inFilter.length >= 1) return inFilter[0];
-    return linked[0] ?? null;
-  }, [platforms, linked]);
-
-  const [streamer, setStreamer] = useState<StreamerId>(defaultStreamer);
-  const [platform, setPlatform] = useState<Provider | null>(defaultPlatform);
-  useEffect(() => setStreamer(defaultStreamer), [defaultStreamer]);
-  useEffect(() => setPlatform(defaultPlatform), [defaultPlatform]);
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [global, setGlobal] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
 
-  const streamerName = STREAMERS.find((s) => s.id === streamer)?.displayName || streamer;
+  const isLinked = (p: Provider) => (p === "twitch" ? Boolean(twitch) : Boolean(kick));
+  const anyLinked = Boolean(twitch || kick);
 
-  if (linked.length === 0) {
+  const selStreamers = STREAMERS.filter((s) => streamers.has(s.id));
+  const selPlatforms = SEND_PLATFORMS.filter((p) => platforms.has(p));
+  const isGlobal =
+    platforms.has("twitch") && platforms.has("kick") && streamers.size === STREAMERS.length;
+
+  const chipLabel = isGlobal
+    ? "Global"
+    : `${selStreamers.map((s) => s.displayName).join(", ") || "None"} · ${
+        selPlatforms.map(plabel).join(", ") || "None"
+      }`;
+
+  function togglePlatform(p: Provider) {
+    setPlatforms((prev) => {
+      const n = new Set(prev);
+      if (n.has(p)) n.delete(p);
+      else n.add(p);
+      return n;
+    });
+    setError(null);
+  }
+  function toggleStreamer(id: StreamerId) {
+    setStreamers((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+    setError(null);
+  }
+  function selectGlobal() {
+    setPlatforms(new Set(ALL_PLATFORMS));
+    setStreamers(new Set(STREAMERS.map((s) => s.id)));
+    setError(null);
+  }
+
+  async function submit() {
+    const msg = text.trim();
+    if (!msg || sending) return;
+    if (selPlatforms.length === 0 || selStreamers.length === 0) {
+      setError("Pick a channel to post to.");
+      return;
+    }
+    const linkedP = selPlatforms.filter(isLinked);
+    const unlinkedP = selPlatforms.filter((p) => !isLinked(p));
+    if (linkedP.length === 0) {
+      setError(`Sign in with ${unlinkedP.map(plabel).join(" & ")} to post there.`);
+      return;
+    }
+    setSending(true);
+    setError(null);
+    const targets = linkedP.flatMap((p) => selStreamers.map((s) => ({ platform: p, streamer: s.id })));
+    const res = await send(targets, msg);
+    setSending(false);
+
+    const okCount = res.results ? res.results.filter((r) => r.ok).length : res.ok ? targets.length : 0;
+    const notes: string[] = [];
+    if (unlinkedP.length) notes.push(`not sent on ${unlinkedP.map(plabel).join(" & ")} (sign in)`);
+    const failNotes = (res.results || [])
+      .filter((r) => !r.ok)
+      .map((r) => {
+        const name = STREAMERS.find((s) => s.id === r.streamer)?.displayName || r.streamer;
+        return `${name} ${plabel(r.platform as Provider)}: ${r.error || "failed"}`;
+      });
+    notes.push(...failNotes);
+
+    if (okCount > 0) {
+      setText("");
+      setError(notes.length ? notes.join(" · ") : null);
+    } else {
+      setError(res.error || notes.join(" · ") || "Couldn't send");
+    }
+  }
+
+  const canSend = Boolean(text.trim()) && !sending;
+
+  if (!anyLinked) {
     return (
       <Flex
         align="center"
@@ -118,37 +182,6 @@ export function ChatComposer({
     );
   }
 
-  async function submit() {
-    const msg = text.trim();
-    if (!msg || sending || (!global && !platform)) return;
-    setSending(true);
-    setError(null);
-
-    if (global) {
-      const targets = linked.flatMap((p) =>
-        STREAMERS.map((s) => ({ p, id: s.id, name: s.displayName }))
-      );
-      const results = await Promise.all(targets.map((t) => send(t.p, t.id, msg)));
-      const okCount = results.filter((r) => r.ok).length;
-      setSending(false);
-      if (okCount > 0) {
-        setText("");
-        const failed = targets.filter((_, i) => !results[i].ok).map((t) => t.name);
-        if (failed.length) setError(`Sent to ${okCount}/${targets.length} — failed: ${failed.join(", ")}`);
-      } else {
-        setError(results[0]?.error || "Failed to send");
-      }
-      return;
-    }
-
-    const r = await send(platform!, streamer, msg);
-    setSending(false);
-    if (r.ok) setText("");
-    else setError(r.error || "Failed to send");
-  }
-
-  const canSend = Boolean(text.trim()) && (global || Boolean(platform)) && !sending;
-
   return (
     <Box
       flexShrink={0}
@@ -159,10 +192,11 @@ export function ChatComposer({
       position="relative"
     >
       {error && (
-        <Text fontSize="2xs" color={c.brand.red} mb="6px" noOfLines={1}>
+        <Text fontSize="2xs" color={c.brand.red} mb="6px" noOfLines={2}>
           {error}
         </Text>
       )}
+
       <Box position="relative">
         <Input
           value={text}
@@ -173,7 +207,7 @@ export function ChatComposer({
               submit();
             }
           }}
-          placeholder={global ? "Message all channels…" : `Message ${streamerName}…`}
+          placeholder={isGlobal ? "Message all channels…" : "Message…"}
           h="40px"
           w="100%"
           pr="40px"
@@ -242,13 +276,14 @@ export function ChatComposer({
       </Box>
 
       <Flex align="center" justify="space-between" mt="8px" gap="8px">
-        <Box position="relative" flexShrink={0}>
+        <Box position="relative" flexShrink={1} minW={0}>
           <HStack
             as="button"
             onClick={() => setMenuOpen((o) => !o)}
             spacing="6px"
             px="9px"
             h="34px"
+            maxW="100%"
             borderRadius={c.radius.control}
             bg={c.overlay.soft}
             border="1px solid"
@@ -256,19 +291,15 @@ export function ChatComposer({
             _hover={{ bg: c.overlay.hover }}
             transition="all 0.12s"
           >
-            {global ? (
-              <Box color={c.brand.gold} display="flex">
+            {isGlobal && (
+              <Box color={c.brand.gold} display="flex" flexShrink={0}>
                 <LuGlobe size={13} />
               </Box>
-            ) : platform ? (
-              <Box color={platform === "twitch" ? c.platform.twitch : c.platform.kick} display="flex">
-                <PlatIcon p={platform} />
-              </Box>
-            ) : null}
-            <Text fontSize="xs" color={c.text.secondary} noOfLines={1} maxW="110px">
-              {global ? "Global" : streamerName}
+            )}
+            <Text fontSize="xs" color={c.text.secondary} noOfLines={1}>
+              {chipLabel}
             </Text>
-            <Box color={c.text.subtle} display="flex">
+            <Box color={c.text.subtle} display="flex" flexShrink={0}>
               <LuChevronUp size={12} />
             </Box>
           </HStack>
@@ -278,10 +309,10 @@ export function ChatComposer({
               <Box position="fixed" inset="0" zIndex={20} onClick={() => setMenuOpen(false)} />
               <Box
                 position="absolute"
-                bottom="44px"
+                bottom="42px"
                 left="0"
                 zIndex={21}
-                w="186px"
+                w="200px"
                 bg={c.surfaceLight}
                 border="1px solid"
                 borderColor={c.border.subtle}
@@ -291,17 +322,13 @@ export function ChatComposer({
               >
                 <HStack
                   as="button"
-                  onClick={() => {
-                    setGlobal(true);
-                    setMenuOpen(false);
-                    setError(null);
-                  }}
+                  onClick={selectGlobal}
                   w="100%"
                   justify="space-between"
                   px="9px"
                   py="7px"
                   borderRadius={c.radius.control}
-                  bg={global ? c.overlay.strong : "transparent"}
+                  bg={isGlobal ? c.overlay.strong : "transparent"}
                   _hover={{ bg: c.overlay.hover }}
                 >
                   <HStack spacing="8px">
@@ -312,75 +339,97 @@ export function ChatComposer({
                       Global
                     </Text>
                   </HStack>
-                  {global && (
+                  {isGlobal && (
                     <Box color={c.brand.green} display="flex">
                       <LuCheck size={13} />
                     </Box>
                   )}
                 </HStack>
+
                 <Box h="1px" bg={c.border.subtle} my="4px" />
-                {PLATS.map((p) => {
-                  const isLinked = linked.includes(p);
+                <Text px="9px" pb="4px" fontFamily="mono" fontSize="2xs" letterSpacing="0.08em" color={c.text.subtle}>
+                  STREAMERS
+                </Text>
+                {STREAMERS.map((s) => {
+                  const on = streamers.has(s.id);
                   return (
-                    <Box key={p} pb="2px">
-                      <HStack px="8px" pt="6px" pb="4px" spacing="6px" color={c.text.subtle}>
+                    <HStack
+                      as="button"
+                      key={s.id}
+                      onClick={() => toggleStreamer(s.id)}
+                      w="100%"
+                      justify="space-between"
+                      px="9px"
+                      py="7px"
+                      borderRadius={c.radius.control}
+                      bg={on && !isGlobal ? c.overlay.strong : "transparent"}
+                      _hover={{ bg: c.overlay.hover }}
+                    >
+                      <Text fontSize="sm" color={c.text.primary}>
+                        {s.displayName}
+                      </Text>
+                      {on && (
+                        <Box color={c.brand.green} display="flex">
+                          <LuCheck size={13} />
+                        </Box>
+                      )}
+                    </HStack>
+                  );
+                })}
+
+                <Box h="1px" bg={c.border.subtle} my="4px" />
+                <Text px="9px" pb="4px" fontFamily="mono" fontSize="2xs" letterSpacing="0.08em" color={c.text.subtle}>
+                  PLATFORMS
+                </Text>
+                {SEND_PLATFORMS.map((p) => {
+                  const on = platforms.has(p);
+                  const linked = isLinked(p);
+                  return (
+                    <HStack
+                      as="button"
+                      key={p}
+                      onClick={() => togglePlatform(p)}
+                      w="100%"
+                      justify="space-between"
+                      px="9px"
+                      py="7px"
+                      borderRadius={c.radius.control}
+                      bg={on && !isGlobal ? c.overlay.strong : "transparent"}
+                      _hover={{ bg: c.overlay.hover }}
+                    >
+                      <HStack spacing="8px">
                         <Box color={p === "twitch" ? c.platform.twitch : c.platform.kick} display="flex">
                           <PlatIcon p={p} />
                         </Box>
-                        <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.08em">
-                          {p.toUpperCase()}
+                        <Text fontSize="sm" color={c.text.primary}>
+                          {plabel(p)}
                         </Text>
                       </HStack>
-                      {isLinked ? (
-                        STREAMERS.map((s) => {
-                          const active = platform === p && streamer === s.id;
-                          return (
-                            <HStack
-                              as="button"
-                              key={p + s.id}
-                              onClick={() => {
-                                setPlatform(p);
-                                setStreamer(s.id);
-                                setGlobal(false);
-                                setMenuOpen(false);
-                                setError(null);
-                              }}
-                              w="100%"
-                              justify="space-between"
-                              px="9px"
-                              py="7px"
-                              borderRadius={c.radius.control}
-                              bg={!global && active ? c.overlay.strong : "transparent"}
-                              _hover={{ bg: c.overlay.hover }}
-                            >
-                              <Text fontSize="sm" color={c.text.primary}>
-                                {s.displayName}
-                              </Text>
-                              {!global && active && (
-                                <Box color={c.brand.green} display="flex">
-                                  <LuCheck size={13} />
-                                </Box>
-                              )}
-                            </HStack>
-                          );
-                        })
+                      {linked ? (
+                        on && (
+                          <Box color={c.brand.green} display="flex">
+                            <LuCheck size={13} />
+                          </Box>
+                        )
                       ) : (
                         <Box
-                          as="button"
-                          onClick={() => login(p)}
-                          w="100%"
-                          textAlign="left"
-                          px="9px"
-                          py="7px"
-                          borderRadius={c.radius.control}
-                          _hover={{ bg: c.overlay.hover }}
+                          as="span"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            login(p);
+                          }}
+                          fontSize="2xs"
+                          color={c.text.muted}
+                          px="7px"
+                          py="3px"
+                          borderRadius={c.radius.pill}
+                          bg={c.overlay.soft}
+                          _hover={{ color: c.text.primary }}
                         >
-                          <Text fontSize="xs" color={c.text.muted}>
-                            Link {p === "twitch" ? "Twitch" : "Kick"} to post here
-                          </Text>
+                          Sign in
                         </Box>
                       )}
-                    </Box>
+                    </HStack>
                   );
                 })}
               </Box>
@@ -388,23 +437,40 @@ export function ChatComposer({
           )}
         </Box>
 
-        <Box
-          as="button"
-          onClick={submit}
-          px="22px"
-          h="34px"
-          flexShrink={0}
-          borderRadius={c.radius.control}
-          bg={canSend ? c.brand.green : c.overlay.soft}
-          color={canSend ? "#04130c" : c.text.subtle}
-          opacity={sending ? 0.7 : 1}
-          _hover={canSend ? { opacity: 0.9 } : {}}
-          transition="all 0.12s"
-          fontWeight={600}
-          fontSize="sm"
-        >
-          {sending ? "Sending…" : "Chat"}
-        </Box>
+        <HStack spacing="8px" flexShrink={0}>
+          <Flex
+            as="button"
+            onClick={onSettings}
+            align="center"
+            justify="center"
+            w="34px"
+            h="34px"
+            borderRadius={c.radius.control}
+            bg={settingsOpen ? c.overlay.strong : c.overlay.soft}
+            color={settingsOpen ? c.text.primary : c.text.muted}
+            _hover={{ color: c.text.primary, bg: c.overlay.hover }}
+            transition="all 0.12s"
+            aria-label="Chat settings"
+          >
+            <LuSettings size={16} />
+          </Flex>
+          <Box
+            as="button"
+            onClick={submit}
+            px="22px"
+            h="34px"
+            borderRadius={c.radius.control}
+            bg={canSend ? c.brand.green : c.overlay.soft}
+            color={canSend ? "#04130c" : c.text.subtle}
+            opacity={sending ? 0.7 : 1}
+            _hover={canSend ? { opacity: 0.9 } : {}}
+            transition="all 0.12s"
+            fontWeight={600}
+            fontSize="sm"
+          >
+            {sending ? "Sending…" : "Chat"}
+          </Box>
+        </HStack>
       </Flex>
     </Box>
   );

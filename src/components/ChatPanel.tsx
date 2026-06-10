@@ -7,7 +7,6 @@ import {
   LuSearch,
   LuX,
   LuListFilter,
-  LuSettings2,
   LuExternalLink,
   LuMinus,
   LuPlus,
@@ -17,10 +16,11 @@ import {
   LuBadgeCheck,
   LuAward,
   LuCrown,
+  LuGlobe,
 } from "react-icons/lu";
 import { FaTwitch, FaXTwitter } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
-import { ChatMessage, Platform, StreamerId, Badge, STREAMERS } from "@/lib/chat/types";
+import { ChatMessage, Platform, StreamerId, Badge, STREAMERS, PLATFORM_LABEL } from "@/lib/chat/types";
 import { useChatFeed } from "@/lib/chat/useChatFeed";
 import { getAvatar } from "@/lib/avatars";
 import { ChatComposer } from "./ChatComposer";
@@ -456,16 +456,29 @@ const ChatRow = memo(function ChatRow({
   const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const detail = (
     <Box py="2px">
-      <Text fontSize="xs" fontWeight={700} color={c.text.primary}>
-        {msg.author.name}
-      </Text>
-      <HStack spacing="5px" mt="3px" color={c.text.muted}>
-        <Box as="span" display="inline-flex">
-          {platformIcon(msg.platform)}
-        </Box>
-        <Text fontSize="2xs">{streamerName(msg.streamer)}&apos;s stream</Text>
-      </HStack>
-      <Text fontSize="2xs" fontFamily="mono" color={c.text.subtle} mt="1px">
+      {msg.multi ? (
+        <>
+          <HStack spacing="5px" color={c.brand.gold}>
+            <Box as="span" display="inline-flex">
+              <LuGlobe size={12} />
+            </Box>
+            <Text fontSize="2xs">{msg.multi.global ? "Sent everywhere" : "Multi-channel"}</Text>
+          </HStack>
+          <Text fontSize="2xs" color={c.text.subtle} mt="2px">
+            {msg.multi.channels
+              .map((ch) => `${streamerName(ch.streamer)} · ${PLATFORM_LABEL[ch.platform]}`)
+              .join(", ")}
+          </Text>
+        </>
+      ) : (
+        <HStack spacing="5px" color={c.text.muted}>
+          <Box as="span" display="inline-flex">
+            {platformIcon(msg.platform)}
+          </Box>
+          <Text fontSize="2xs">{streamerName(msg.streamer)}&apos;s stream</Text>
+        </HStack>
+      )}
+      <Text fontSize="2xs" fontFamily="mono" color={c.text.subtle} mt="2px">
         {time}
       </Text>
     </Box>
@@ -497,14 +510,20 @@ const ChatRow = memo(function ChatRow({
             display="inline-flex"
             verticalAlign="middle"
             mr="7px"
-            color={sourceStyle === "subtle" ? c.text.subtle : platformColor(c, msg.platform)}
+            color={
+              msg.multi
+                ? c.brand.gold
+                : sourceStyle === "subtle"
+                  ? c.text.subtle
+                  : platformColor(c, msg.platform)
+            }
             sx={
-              sourceStyle === "glow"
+              !msg.multi && sourceStyle === "glow"
                 ? { filter: `drop-shadow(0 0 4px ${platformColor(c, msg.platform)})` }
                 : undefined
             }
           >
-            {platformIcon(msg.platform)}
+            {msg.multi ? <LuGlobe size={11} /> : platformIcon(msg.platform)}
           </Box>
         )}
         {showAvatars && (
@@ -681,9 +700,6 @@ export function ChatPanel() {
           <IconBtn label="Filters" active={panel === "filters"} onClick={() => togglePanel("filters")}>
             <LuListFilter size={16} />
           </IconBtn>
-          <IconBtn label="Chat settings" active={panel === "settings"} onClick={() => togglePanel("settings")}>
-            <LuSettings2 size={16} />
-          </IconBtn>
           <IconBtn
             label="Pop out chat"
             active={false}
@@ -797,55 +813,6 @@ export function ChatPanel() {
         </VStack>
       )}
 
-      {panel === "settings" && (
-        <VStack
-          align="stretch"
-          spacing="0"
-          px="16px"
-          py="10px"
-          position="absolute"
-          top="52px"
-          left="0"
-          right="0"
-          zIndex={20}
-          maxH="calc(100% - 52px)"
-          overflowY="auto"
-          bg={c.surface}
-          boxShadow={c.shadow.soft}
-          borderBottom="1px solid"
-          borderColor={c.border.subtle}
-          borderBottomRadius={c.radius.card}
-        >
-          <GroupLabel>APPEARANCE</GroupLabel>
-          <Flex align="center" justify="space-between" py="9px">
-            <Text fontSize="sm" color={c.text.primary}>
-              Text size
-            </Text>
-            <SizeStepper value={chatSize} onChange={setChatSize} />
-          </Flex>
-          <SettingRow label="Compact mode" on={compact} onToggle={() => setCompact((v) => !v)} />
-          <SettingRow label="Hide commands" on={hideCommands} onToggle={() => setHideCommands((v) => !v)} />
-          <SettingRow label="Platform icons" on={showIcons} onToggle={() => setShowIcons((v) => !v)} />
-          <Flex align="center" justify="space-between" py="9px">
-            <Text fontSize="sm" color={c.text.primary}>
-              Source style
-            </Text>
-            <SegSelect
-              value={sourceStyle}
-              options={[
-                { label: "Subtle", val: "subtle" },
-                { label: "Color", val: "color" },
-                { label: "Glow", val: "glow" },
-              ]}
-              onChange={(v) => setSourceStyle(v as SourceStyle)}
-            />
-          </Flex>
-          <SettingRow label="Streamer avatars" on={showAvatars} onToggle={() => setShowAvatars((v) => !v)} />
-          <SettingRow label="Chat badges" on={showBadges} onToggle={() => setShowBadges((v) => !v)} />
-          <SettingRow label="Hover details" on={showDetails} onToggle={() => setShowDetails((v) => !v)} />
-        </VStack>
-      )}
-
       <Box ref={scrollRef} onScroll={onScroll} flex="1" overflowY="auto" py="8px" position="relative">
         {filtered.map((m) => (
           <ChatRow
@@ -883,7 +850,57 @@ export function ChatPanel() {
         </Box>
       )}
 
-      <ChatComposer platforms={platforms} streamers={streamers} />
+      {panel === "settings" && (
+        <VStack
+          align="stretch"
+          spacing="0"
+          px="16px"
+          py="10px"
+          flexShrink={0}
+          maxH="55%"
+          overflowY="auto"
+          bg={c.surface}
+          borderTop="1px solid"
+          borderColor={c.border.subtle}
+        >
+          <GroupLabel>APPEARANCE</GroupLabel>
+          <Flex align="center" justify="space-between" py="9px">
+            <Text fontSize="sm" color={c.text.primary}>
+              Text size
+            </Text>
+            <SizeStepper value={chatSize} onChange={setChatSize} />
+          </Flex>
+          <SettingRow label="Compact mode" on={compact} onToggle={() => setCompact((v) => !v)} />
+          <SettingRow label="Hide commands" on={hideCommands} onToggle={() => setHideCommands((v) => !v)} />
+          <SettingRow label="Platform icons" on={showIcons} onToggle={() => setShowIcons((v) => !v)} />
+          <Flex align="center" justify="space-between" py="9px">
+            <Text fontSize="sm" color={c.text.primary}>
+              Source style
+            </Text>
+            <SegSelect
+              value={sourceStyle}
+              options={[
+                { label: "Subtle", val: "subtle" },
+                { label: "Color", val: "color" },
+                { label: "Glow", val: "glow" },
+              ]}
+              onChange={(v) => setSourceStyle(v as SourceStyle)}
+            />
+          </Flex>
+          <SettingRow label="Streamer avatars" on={showAvatars} onToggle={() => setShowAvatars((v) => !v)} />
+          <SettingRow label="Chat badges" on={showBadges} onToggle={() => setShowBadges((v) => !v)} />
+          <SettingRow label="Hover details" on={showDetails} onToggle={() => setShowDetails((v) => !v)} />
+        </VStack>
+      )}
+
+      <ChatComposer
+        platforms={platforms}
+        streamers={streamers}
+        setPlatforms={setPlatforms}
+        setStreamers={setStreamers}
+        settingsOpen={panel === "settings"}
+        onSettings={() => togglePanel("settings")}
+      />
     </Flex>
   );
 }
