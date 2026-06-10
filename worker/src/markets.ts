@@ -1,6 +1,3 @@
-const UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
-
 export interface MarketQuote {
   symbol: string;
   price: number;
@@ -45,60 +42,6 @@ export async function getCrypto(): Promise<MarketQuote[]> {
   } catch {
     return [];
   }
-}
-
-async function getYahoo(symbol: string, display: string): Promise<MarketQuote | null> {
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
-      symbol
-    )}?range=1d&interval=5m`;
-    const res = await fetch(url, { headers: { "User-Agent": UA } });
-    if (!res.ok) return null;
-    const d = (await res.json()) as {
-      chart?: {
-        result?: Array<{
-          meta?: { regularMarketPrice?: number; chartPreviousClose?: number; previousClose?: number };
-          indicators?: { quote?: Array<{ close?: Array<number | null> }> };
-        }>;
-      };
-    };
-    const r = d.chart?.result?.[0];
-    if (!r || !r.meta) return null;
-    const price = Number(r.meta.regularMarketPrice);
-    const prev = Number(r.meta.chartPreviousClose ?? r.meta.previousClose);
-    if (!Number.isFinite(price)) return null;
-    const closes = (r.indicators?.quote?.[0]?.close || []).filter(
-      (x): x is number => typeof x === "number"
-    );
-    const change = Number.isFinite(prev) && prev !== 0 ? ((price - prev) / prev) * 100 : 0;
-    return { symbol: display, price, change, spark: closes.slice(-60) };
-  } catch {
-    return null;
-  }
-}
-
-const STOCKS: { s: string; n: string }[] = [
-  { s: "^GSPC", n: "S&P 500" },
-  { s: "^IXIC", n: "Nasdaq" },
-  { s: "^DJI", n: "Dow Jones" },
-  { s: "^RUT", n: "Russell 2K" },
-];
-
-const COMMODITIES: { s: string; n: string }[] = [
-  { s: "GC=F", n: "Gold" },
-  { s: "SI=F", n: "Silver" },
-  { s: "CL=F", n: "Crude Oil" },
-  { s: "NG=F", n: "Nat Gas" },
-];
-
-export async function getStocks(): Promise<MarketQuote[]> {
-  const r = await Promise.all(STOCKS.map((x) => getYahoo(x.s, x.n)));
-  return r.filter((x): x is MarketQuote => x != null);
-}
-
-export async function getCommodities(): Promise<MarketQuote[]> {
-  const r = await Promise.all(COMMODITIES.map((x) => getYahoo(x.s, x.n)));
-  return r.filter((x): x is MarketQuote => x != null);
 }
 
 export async function getPolymarket(): Promise<PolyMarket[]> {

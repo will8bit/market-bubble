@@ -94,8 +94,8 @@ function SourceTabs({
 }
 
 const TEST_CHANNELS = {
-  twitch: "fazebanks",
-  kick: "solomission",
+  twitch: process.env.NEXT_PUBLIC_VIDEO_TWITCH,
+  kick: process.env.NEXT_PUBLIC_VIDEO_KICK,
 };
 
 function XFallback() {
@@ -250,19 +250,23 @@ export function VideoStage({ hideViewerCount = false }: { hideViewerCount?: bool
         <Box position="relative" w="100%" maxW="1280px">
           <AspectRatio ratio={16 / 9}>
             {source === "twitch" ? (
-              host ? (
+              host && TEST_CHANNELS.twitch ? (
                 <TwitchPlayer channel={TEST_CHANNELS.twitch} host={host} />
               ) : (
                 <Box bg="#000" />
               )
             ) : source === "kick" ? (
-              <iframe
-                title="Kick player"
-                src={`https://player.kick.com/${TEST_CHANNELS.kick}?autoplay=true&muted=true`}
-                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                allowFullScreen
-                style={{ border: 0, width: "100%", height: "100%" }}
-              />
+              TEST_CHANNELS.kick ? (
+                <iframe
+                  title="Kick player"
+                  src={`https://player.kick.com/${TEST_CHANNELS.kick}?autoplay=true&muted=true`}
+                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  style={{ border: 0, width: "100%", height: "100%" }}
+                />
+              ) : (
+                <Box bg="#000" />
+              )
             ) : (
               <XFallback />
             )}

@@ -28,8 +28,6 @@ export interface Stats {
   };
   markets: {
     crypto: MarketQuote[];
-    stocks: MarketQuote[];
-    commodities: MarketQuote[];
     polymarket: { question: string; yes: number; no: number; endDate: string }[];
   };
 }

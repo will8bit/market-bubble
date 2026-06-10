@@ -6,14 +6,7 @@ import { connectKick } from "./kick";
 import { connectX } from "./x";
 import { createFanoutServer } from "./server";
 import { getTwitchViewers, getKickViewers } from "./viewers";
-import {
-  getCrypto,
-  getStocks,
-  getCommodities,
-  getPolymarket,
-  MarketQuote,
-  PolyMarket,
-} from "./markets";
+import { getCrypto, getPolymarket, MarketQuote, PolyMarket } from "./markets";
 
 async function main() {
   const port = Number(process.env.PORT || 8080);
@@ -37,8 +30,6 @@ async function main() {
   const kickSlugs = STREAMERS.map((s) => s.kick).filter((v): v is string => Boolean(v));
 
   let crypto: MarketQuote[] = await getCrypto();
-  let stocks: MarketQuote[] = await getStocks();
-  let commodities: MarketQuote[] = await getCommodities();
   let poly: PolyMarket[] = await getPolymarket();
 
   async function pushStats() {
@@ -77,19 +68,14 @@ async function main() {
         streamers,
         twitchStartedAt,
       },
-      markets: { crypto, stocks, commodities, polymarket: poly },
+      markets: { crypto, polymarket: poly },
     });
   }
 
   await pushStats();
   const statsTimer = setInterval(pushStats, 30000);
   const marketTimer = setInterval(async () => {
-    [crypto, stocks, commodities, poly] = await Promise.all([
-      getCrypto(),
-      getStocks(),
-      getCommodities(),
-      getPolymarket(),
-    ]);
+    [crypto, poly] = await Promise.all([getCrypto(), getPolymarket()]);
   }, 45000);
 
   if (X_TARGETS.length === 0) {

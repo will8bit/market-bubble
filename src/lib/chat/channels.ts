@@ -6,9 +6,31 @@ export interface ChannelConfig {
   kick?: { slug: string; chatroomId: number };
 }
 
+function build(
+  id: StreamerId,
+  twitch: string | undefined,
+  slug: string | undefined,
+  chatroomId: string | undefined
+): ChannelConfig {
+  const out: ChannelConfig = { id };
+  if (twitch) out.twitch = twitch;
+  if (slug) out.kick = { slug, chatroomId: Number(chatroomId) || 0 };
+  return out;
+}
+
 export const CHANNELS: ChannelConfig[] = [
-  { id: "banks", twitch: "clix", kick: { slug: "solomission", chatroomId: 2218947 } },
-  { id: "ansem" },
+  build(
+    "banks",
+    process.env.NEXT_PUBLIC_BANKS_TWITCH,
+    process.env.NEXT_PUBLIC_BANKS_KICK,
+    process.env.NEXT_PUBLIC_BANKS_KICK_CHATROOM_ID
+  ),
+  build(
+    "ansem",
+    process.env.NEXT_PUBLIC_ANSEM_TWITCH,
+    process.env.NEXT_PUBLIC_ANSEM_KICK,
+    process.env.NEXT_PUBLIC_ANSEM_KICK_CHATROOM_ID
+  ),
 ];
 
 export const twitchTargets = CHANNELS.filter((c) => c.twitch).map((c) => ({

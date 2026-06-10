@@ -1,7 +1,16 @@
 import { randomBytes, createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { STREAMERS } from "./config";
 
 type Provider = "twitch" | "kick";
+
+interface SendResult {
+  ok: boolean;
+  error?: string;
+}
+
+const UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 export interface Account {
   userId: string;
@@ -225,18 +234,200 @@ async function callbackKick(res: ServerResponse, url: URL) {
   }
 }
 
+function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve) => {
+    let data = "";
+    req.on("data", (chunk) => {
+      data += chunk;
+      if (data.length > 1_000_000) req.destroy();
+    });
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(data || "{}"));
+      } catch {
+        resolve({});
+      }
+    });
+    req.on("error", () => resolve({}));
+  });
+}
+
+async function refreshAccount(provider: Provider, a: Account): Promise<boolean> {
+  const url = provider === "twitch" ? "https://id.twitch.tv/oauth2/token" : "https://id.kick.com/oauth/token";
+  const clientId = provider === "twitch" ? env("TWITCH_CLIENT_ID") : env("KICK_CLIENT_ID");
+  const clientSecret = provider === "twitch" ? env("TWITCH_CLIENT_SECRET") : env("KICK_CLIENT_SECRET");
+  if (!a.refreshToken) return false;
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: a.refreshToken,
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
+    if (!r.ok) return false;
+    const t = (await r.json()) as { access_token?: string; refresh_token?: string; expires_in?: number };
+    if (!t.access_token) return false;
+    a.accessToken = t.access_token;
+    if (t.refresh_token) a.refreshToken = t.refresh_token;
+    a.expiresAt = Date.now() + (t.expires_in || 3600) * 1000;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureFresh(provider: Provider, a: Account): Promise<boolean> {
+  if (Date.now() < a.expiresAt - 60000) return true;
+  return refreshAccount(provider, a);
+}
+
+const twitchIds = new Map<string, string>();
+const kickIds = new Map<string, number>();
+
+async function twitchBroadcasterId(login: string, token: string): Promise<string | null> {
+  const key = login.toLowerCase();
+  if (twitchIds.has(key)) return twitchIds.get(key)!;
+  try {
+    const r = await fetch(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(key)}`, {
+      headers: { "Client-Id": env("TWITCH_CLIENT_ID"), authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) return null;
+    const d = (await r.json()) as { data?: Array<{ id?: string }> };
+    const id = d.data?.[0]?.id;
+    if (id) {
+      twitchIds.set(key, id);
+      return id;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function kickBroadcasterId(slug: string): Promise<number | null> {
+  const key = slug.toLowerCase();
+  if (kickIds.has(key)) return kickIds.get(key)!;
+  try {
+    const r = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(key)}`, {
+      headers: { "User-Agent": UA, accept: "application/json" },
+    });
+    if (!r.ok) return null;
+    const d = (await r.json()) as { user_id?: number };
+    if (typeof d.user_id === "number") {
+      kickIds.set(key, d.user_id);
+      return d.user_id;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function sendTwitch(account: Account, login: string, message: string): Promise<SendResult> {
+  const broadcasterId = await twitchBroadcasterId(login, account.accessToken);
+  if (!broadcasterId) return { ok: false, error: "channel not found" };
+  try {
+    const r = await fetch("https://api.twitch.tv/helix/chat/messages", {
+      method: "POST",
+      headers: {
+        "Client-Id": env("TWITCH_CLIENT_ID"),
+        authorization: `Bearer ${account.accessToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ broadcaster_id: broadcasterId, sender_id: account.userId, message }),
+    });
+    if (r.status === 401) return { ok: false, error: "Twitch session expired — reconnect" };
+    if (!r.ok) return { ok: false, error: "Twitch rejected the message" };
+    const d = (await r.json().catch(() => null)) as {
+      data?: Array<{ is_sent?: boolean; drop_reason?: { message?: string } | null }>;
+    } | null;
+    const item = d?.data?.[0];
+    if (item && item.is_sent === false) {
+      return { ok: false, error: item.drop_reason?.message || "Message was blocked" };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Twitch send failed" };
+  }
+}
+
+async function sendKick(account: Account, slug: string, message: string): Promise<SendResult> {
+  const id = await kickBroadcasterId(slug);
+  if (!id) return { ok: false, error: "channel not found" };
+  try {
+    const r = await fetch("https://api.kick.com/public/v1/chat", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${account.accessToken}`,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({ broadcaster_user_id: id, content: message, type: "user" }),
+    });
+    if (r.status === 401) return { ok: false, error: "Kick session expired — reconnect" };
+    if (!r.ok) return { ok: false, error: "Kick rejected the message" };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Kick send failed" };
+  }
+}
+
+async function handleSend(req: IncomingMessage, res: ServerResponse) {
+  if (req.method !== "POST") {
+    json(res, 405, { ok: false, error: "method not allowed" });
+    return;
+  }
+  const session = getSession(req);
+  const body = await readJson(req);
+  const platform = body.platform === "twitch" || body.platform === "kick" ? body.platform : null;
+  const streamerId = typeof body.streamer === "string" ? body.streamer : "";
+  const message = (typeof body.message === "string" ? body.message : "").trim();
+
+  if (!session) return json(res, 401, { ok: false, error: "not signed in" });
+  if (!platform) return json(res, 400, { ok: false, error: "bad platform" });
+  if (!message) return json(res, 400, { ok: false, error: "empty message" });
+
+  const account = session[platform];
+  if (!account) return json(res, 400, { ok: false, error: `link ${platform} first` });
+
+  const cfg = STREAMERS.find((s) => s.id === streamerId);
+  if (!cfg) return json(res, 400, { ok: false, error: "unknown streamer" });
+
+  const fresh = await ensureFresh(platform, account);
+  if (!fresh) return json(res, 401, { ok: false, error: `${platform} session expired — reconnect` });
+
+  let result: SendResult;
+  if (platform === "twitch") {
+    if (!cfg.twitch) return json(res, 400, { ok: false, error: "no Twitch channel for this streamer" });
+    result = await sendTwitch(account, cfg.twitch, message);
+  } else {
+    if (!cfg.kick) return json(res, 400, { ok: false, error: "no Kick channel for this streamer" });
+    result = await sendKick(account, cfg.kick, message);
+  }
+  json(res, result.ok ? 200 : 400, result);
+}
+
 export async function handleAuthRequest(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<boolean> {
   const url = new URL(req.url || "/", "http://localhost");
   const path = url.pathname;
-  if (!path.startsWith("/auth/")) return false;
+  if (!path.startsWith("/auth/") && path !== "/chat/send") return false;
 
   if (req.method === "OPTIONS") {
     cors(res);
     res.writeHead(204);
     res.end();
+    return true;
+  }
+
+  if (path === "/chat/send") {
+    await handleSend(req, res);
     return true;
   }
 

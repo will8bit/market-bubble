@@ -12,6 +12,11 @@ export interface LinkedAccount {
   avatar: string;
 }
 
+export interface SendResult {
+  ok: boolean;
+  error?: string;
+}
+
 interface AuthState {
   twitch: LinkedAccount | null;
   kick: LinkedAccount | null;
@@ -20,6 +25,7 @@ interface AuthState {
   login: (provider: Provider) => void;
   unlink: (provider: Provider) => void;
   logout: () => void;
+  send: (platform: Provider, streamer: string, message: string) => Promise<SendResult>;
 }
 
 const Context = createContext<AuthState>({
@@ -30,6 +36,7 @@ const Context = createContext<AuthState>({
   login: () => {},
   unlink: () => {},
   logout: () => {},
+  send: async () => ({ ok: false, error: "not ready" }),
 });
 
 const STORAGE_KEY = "mb-session";
@@ -133,9 +140,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setKick(null);
   }, []);
 
+  const send = useCallback(
+    async (platform: Provider, streamer: string, message: string): Promise<SendResult> => {
+      if (!WORKER) return { ok: false, error: "not configured" };
+      const session = getSession();
+      if (!session) return { ok: false, error: "not signed in" };
+      try {
+        const res = await fetch(`${WORKER}/chat/send`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${session}`, "content-type": "application/json" },
+          body: JSON.stringify({ platform, streamer, message }),
+        });
+        const d = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok || d.ok === false) return { ok: false, error: d.error || `failed (${res.status})` };
+        return { ok: true };
+      } catch {
+        return { ok: false, error: "network error" };
+      }
+    },
+    []
+  );
+
   return (
     <Context.Provider
-      value={{ twitch, kick, ready, enabled: Boolean(WORKER), login, unlink, logout }}
+      value={{ twitch, kick, ready, enabled: Boolean(WORKER), login, unlink, logout, send }}
     >
       {children}
     </Context.Provider>

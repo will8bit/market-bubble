@@ -134,14 +134,39 @@ function MarketGroup({ title, rows }: { title: string; rows: MarketQuote[] }) {
   );
 }
 
+function exampleSpark(base: number, change: number): number[] {
+  const start = base / (1 + change / 100);
+  const step = (base - start) / 23;
+  const out: number[] = [];
+  for (let i = 0; i < 24; i++) out.push(start + step * i + base * 0.006 * Math.sin(i * 1.4 + base));
+  return out;
+}
+
+function ex(symbol: string, price: number, change: number): MarketQuote {
+  return { symbol, price, change, spark: exampleSpark(price, change) };
+}
+
+const EXAMPLE_STOCKS: MarketQuote[] = [
+  ex("S&P 500", 6943, 0.42),
+  ex("Nasdaq", 25410, 0.73),
+  ex("Dow", 50330, -0.18),
+  ex("Russell 2K", 2861, 1.12),
+];
+
+const EXAMPLE_COMMODITIES: MarketQuote[] = [
+  ex("Gold", 4152, -0.31),
+  ex("Silver", 65.2, 0.94),
+  ex("Crude Oil", 90.9, -1.21),
+  ex("Nat Gas", 3.22, 2.4),
+];
+
 function MarketsList() {
   const stats = useStats();
-  const m = stats?.markets;
   return (
     <Flex direction="column" gap="16px">
-      <MarketGroup title="CRYPTO" rows={m?.crypto ?? []} />
-      <MarketGroup title="INDICES" rows={m?.stocks ?? []} />
-      <MarketGroup title="COMMODITIES" rows={m?.commodities ?? []} />
+      <MarketGroup title="CRYPTO" rows={stats?.markets.crypto ?? []} />
+      <MarketGroup title="INDICES" rows={EXAMPLE_STOCKS} />
+      <MarketGroup title="COMMODITIES" rows={EXAMPLE_COMMODITIES} />
     </Flex>
   );
 }

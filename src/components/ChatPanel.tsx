@@ -23,6 +23,7 @@ import { SiKick } from "react-icons/si";
 import { ChatMessage, Platform, StreamerId, Badge, STREAMERS } from "@/lib/chat/types";
 import { useChatFeed } from "@/lib/chat/useChatFeed";
 import { getAvatar } from "@/lib/avatars";
+import { ChatComposer } from "./ChatComposer";
 import { useColors } from "@/theme/useColors";
 
 type Colors = ReturnType<typeof useColors>;
@@ -882,18 +883,7 @@ export function ChatPanel() {
         </Box>
       )}
 
-      <Flex
-        align="center"
-        h="46px"
-        px="18px"
-        flexShrink={0}
-        borderTop="1px solid"
-        borderColor={c.border.subtle}
-      >
-        <Text fontFamily="mono" fontSize="2xs" color={c.text.subtle}>
-          {filtered.length} shown · read-only aggregation
-        </Text>
-      </Flex>
+      <ChatComposer platforms={platforms} streamers={streamers} />
     </Flex>
   );
 }
