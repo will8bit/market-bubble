@@ -105,8 +105,9 @@ export function useChatFeed(paused: boolean) {
           } else if (frame.t === "sent") {
             const now = Date.now();
             markersRef.current = markersRef.current.filter((m) => now - m.at < 20000);
-            markersRef.current.push(frame);
-            setMessages((prev) => reconcile(prev, frame));
+            const local = { ...frame, at: now };
+            markersRef.current.push(local);
+            setMessages((prev) => reconcile(prev, local));
           }
         })
       );
