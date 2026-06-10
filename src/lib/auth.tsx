@@ -1,0 +1,147 @@
+"use client";
+
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+
+const WORKER = (process.env.NEXT_PUBLIC_WORKER_URL || "").replace(/\/+$/, "");
+
+export type Provider = "twitch" | "kick";
+
+export interface LinkedAccount {
+  username: string;
+  displayName: string;
+  avatar: string;
+}
+
+interface AuthState {
+  twitch: LinkedAccount | null;
+  kick: LinkedAccount | null;
+  ready: boolean;
+  enabled: boolean;
+  login: (provider: Provider) => void;
+  unlink: (provider: Provider) => void;
+  logout: () => void;
+}
+
+const Context = createContext<AuthState>({
+  twitch: null,
+  kick: null,
+  ready: false,
+  enabled: false,
+  login: () => {},
+  unlink: () => {},
+  logout: () => {},
+});
+
+const STORAGE_KEY = "mb-session";
+
+function getSession(): string {
+  try {
+    return localStorage.getItem(STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [twitch, setTwitch] = useState<LinkedAccount | null>(null);
+  const [kick, setKick] = useState<LinkedAccount | null>(null);
+  const [ready, setReady] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!WORKER) {
+      setReady(true);
+      return;
+    }
+    const session = getSession();
+    if (!session) {
+      setTwitch(null);
+      setKick(null);
+      setReady(true);
+      return;
+    }
+    try {
+      const res = await fetch(`${WORKER}/auth/me`, {
+        headers: { authorization: `Bearer ${session}` },
+      });
+      if (res.ok) {
+        const d = (await res.json()) as { twitch: LinkedAccount | null; kick: LinkedAccount | null };
+        setTwitch(d.twitch);
+        setKick(d.kick);
+      }
+    } catch {}
+    setReady(true);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const incoming = params.get("mb_session");
+      if (incoming) {
+        localStorage.setItem(STORAGE_KEY, incoming);
+        params.delete("mb_session");
+        params.delete("mb_error");
+        const qs = params.toString();
+        window.history.replaceState(
+          {},
+          "",
+          window.location.pathname + (qs ? `?${qs}` : "")
+        );
+      }
+    } catch {}
+    refresh();
+  }, [refresh]);
+
+  const login = useCallback((provider: Provider) => {
+    if (!WORKER) return;
+    const session = getSession();
+    const q = session ? `?session=${encodeURIComponent(session)}` : "";
+    window.location.href = `${WORKER}/auth/${provider}${q}`;
+  }, []);
+
+  const unlink = useCallback(
+    async (provider: Provider) => {
+      if (!WORKER) return;
+      const session = getSession();
+      if (!session) return;
+      try {
+        await fetch(`${WORKER}/auth/unlink?provider=${provider}`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${session}` },
+        });
+      } catch {}
+      refresh();
+    },
+    [refresh]
+  );
+
+  const logout = useCallback(async () => {
+    if (WORKER) {
+      const session = getSession();
+      if (session) {
+        try {
+          await fetch(`${WORKER}/auth/logout`, {
+            method: "POST",
+            headers: { authorization: `Bearer ${session}` },
+          });
+        } catch {}
+      }
+    }
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+    setTwitch(null);
+    setKick(null);
+  }, []);
+
+  return (
+    <Context.Provider
+      value={{ twitch, kick, ready, enabled: Boolean(WORKER), login, unlink, logout }}
+    >
+      {children}
+    </Context.Provider>
+  );
+}
+
+export function useAuth() {
+  return useContext(Context);
+}

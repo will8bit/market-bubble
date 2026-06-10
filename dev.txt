@@ -1,0 +1,1 @@
+find kick chatID with this: https://kick.com/api/v2/channels/*streamerUsername*
