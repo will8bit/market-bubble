@@ -105,8 +105,7 @@ function publicAccount(a?: Account) {
 export function isAdmin(session?: Session): boolean {
   if (!session) return false;
   const u = session.twitch?.username?.toLowerCase();
-  const k = session.kick?.username?.toLowerCase();
-  return (!!u && ADMIN_USERS.has(u)) || (!!k && ADMIN_USERS.has(k));
+  return !!u && ADMIN_USERS.has(u);
 }
 
 async function startTwitch(res: ServerResponse, sessionId?: string) {
