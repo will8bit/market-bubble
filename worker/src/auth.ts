@@ -440,12 +440,13 @@ async function setKickTitle(account: Account, title: string): Promise<SendResult
   }
 }
 
-async function handleAdminShow(req: IncomingMessage, res: ServerResponse) {
+async function handleAdminShow(req: IncomingMessage, res: ServerResponse, ctx?: SendCtx) {
   if (req.method !== "POST") return json(res, 405, { ok: false, error: "method not allowed" });
   const session = getSession(req);
   if (!isAdmin(session)) return json(res, 403, { ok: false, error: "not authorized" });
   const body = await readJson(req);
   const show = setShow({ title: body.title, subtitle: body.subtitle });
+  ctx?.refreshShow?.(show);
   return json(res, 200, { ok: true, show });
 }
 
@@ -468,6 +469,7 @@ async function handleStreamTitle(req: IncomingMessage, res: ServerResponse) {
 
 interface SendCtx {
   broadcastSent: (marker: Record<string, unknown>) => void;
+  refreshShow?: (show: { title: string; subtitle: string }) => void;
 }
 
 async function handleSend(req: IncomingMessage, res: ServerResponse, ctx?: SendCtx) {
@@ -563,7 +565,7 @@ export async function handleAuthRequest(
   }
 
   if (path === "/admin/show") {
-    await handleAdminShow(req, res);
+    await handleAdminShow(req, res, ctx);
     return true;
   }
 

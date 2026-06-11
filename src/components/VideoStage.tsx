@@ -186,15 +186,6 @@ function OfflineScreen() {
       <Box color="#fefefe">
         <MarketBubbleLockup width="clamp(120px, 34cqw, 250px)" />
       </Box>
-      <Text
-        fontFamily="heading"
-        fontWeight={400}
-        fontSize="clamp(14px, 4.2cqw, 28px)"
-        color="#fefefe"
-        lineHeight={1.1}
-      >
-        We&apos;re offline
-      </Text>
       <VStack spacing="clamp(2px, 0.6cqw, 4px)">
         <Text
           fontFamily="mono"
