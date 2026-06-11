@@ -13,20 +13,20 @@ const display = Instrument_Serif({
 
 export const metadata: Metadata = {
   title: {
-    default: "Market Bubble — Live",
+    default: "Market Bubble",
     template: "%s | Market Bubble",
   },
   description:
-    "The unified live dashboard for Market Bubble. One chat across Twitch, Kick and X. Make money, command attention, leverage AI.",
+    "Market Bubble dashboard. Make money, command attention, leverage AI.",
   openGraph: {
     type: "website",
     siteName: "Market Bubble",
-    title: "Market Bubble — Live",
+    title: "Market Bubble",
     description: "One chat across Twitch, Kick and X. Live every Thursday, 1PM PST.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Market Bubble — Live",
+    title: "Market Bubble",
     description: "One chat across Twitch, Kick and X. Live every Thursday, 1PM PST.",
   },
 };

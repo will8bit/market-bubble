@@ -4,7 +4,7 @@ export interface ShowConfig {
 }
 
 let showConfig: ShowConfig = {
-  title: process.env.SHOW_TITLE || "Greg Osuri & Mayne: Market Bubble EP 4",
+  title: process.env.SHOW_TITLE || "INTERN, & MTVJESSE: Market Bubble EP 6 ",
   subtitle: process.env.SHOW_SUBTITLE || "THURSDAY 1PM PST · PRESENTED BY POLYMARKET",
 };
 

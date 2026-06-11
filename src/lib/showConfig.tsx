@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useStats } from "./chat/StatsProvider";
 
-export const DEFAULT_SHOW_TITLE = "Greg Osuri & Mayne: Market Bubble EP 4";
+export const DEFAULT_SHOW_TITLE = "INTERN, & MTVJESSE: Market Bubble EP 6 ";
 export const DEFAULT_SHOW_SUBTITLE = "THURSDAY 1PM PST · PRESENTED BY POLYMARKET";
 
 const WORKER = (process.env.NEXT_PUBLIC_WORKER_URL || "").replace(/\/+$/, "");

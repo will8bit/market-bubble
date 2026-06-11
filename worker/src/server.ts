@@ -35,7 +35,7 @@ export interface FanoutServer {
 
 export function createFanoutServer(port: number): FanoutServer {
   const http = createServer((req, res) => {
-    handleAuthRequest(req, res, { broadcastSent })
+    handleAuthRequest(req, res, { broadcastSent, refreshShow })
       .then((handled) => {
         if (handled) return;
         res.writeHead(200, { "content-type": "text/plain" });
@@ -121,6 +121,20 @@ export function createFanoutServer(port: number): FanoutServer {
     }
     if (found) keptMarkers.add(mk.id);
     recent = out;
+  }
+
+  function refreshShow(show: { title: string; subtitle: string }) {
+    if (latestStats && typeof latestStats === "object") {
+      (latestStats as Record<string, unknown>).show = show;
+    }
+    const payload = JSON.stringify({ t: "stats", stats: latestStats });
+    for (const ws of clients) {
+      if (ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(payload);
+        } catch {}
+      }
+    }
   }
 
   function broadcastSent(marker: Record<string, unknown>) {
