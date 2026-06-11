@@ -7,6 +7,7 @@ import { SiKick } from "react-icons/si";
 import { LuCalendar, LuX, LuExternalLink, LuEye } from "react-icons/lu";
 import { useStats, type MarketQuote, type MediaClip, type MediaVideo } from "@/lib/chat/StatsProvider";
 import { useSettings } from "@/lib/settings";
+import { usePersistentState } from "@/lib/usePersistentState";
 import { RollingNumber } from "./RollingNumber";
 import { useAvatar } from "@/lib/avatars";
 import { useColors } from "@/theme/useColors";
@@ -317,9 +318,7 @@ function TabButton({
 
 export function MarketsPanel() {
   const c = useColors();
-  const { marketsTab } = useSettings();
-  const [tab, setTab] = useState<"polymarket" | "markets">(marketsTab);
-  useEffect(() => setTab(marketsTab), [marketsTab]);
+  const { marketsTab, setMarketsTab } = useSettings();
   return (
     <Box
       bg={c.surface}
@@ -340,17 +339,29 @@ export function MarketsPanel() {
         p="3px"
         mb="14px"
         flexShrink={0}
-        alignSelf="flex-start"
+        alignSelf="center"
       >
-        <TabButton active={tab === "polymarket"} onClick={() => setTab("polymarket")}>
+        <TabButton active={marketsTab === "polymarket"} onClick={() => setMarketsTab("polymarket")}>
           POLYMARKET
         </TabButton>
-        <TabButton active={tab === "markets"} onClick={() => setTab("markets")}>
+        <TabButton active={marketsTab === "markets"} onClick={() => setMarketsTab("markets")}>
           MARKETS
         </TabButton>
       </HStack>
-      <Box flex="1" minH={0} overflowY="auto">
-        {tab === "polymarket" ? <PolymarketList /> : <MarketsList />}
+      <Box
+        flex="1"
+        minH={0}
+        overflowY="auto"
+        sx={{
+          scrollbarWidth: "thin",
+          scrollbarColor: `${c.overlay.strong} transparent`,
+          "&::-webkit-scrollbar": { width: "7px" },
+          "&::-webkit-scrollbar-thumb": { background: c.overlay.strong, borderRadius: "4px" },
+          "&::-webkit-scrollbar-thumb:hover": { background: c.border.strong },
+          "&::-webkit-scrollbar-track": { background: "transparent" },
+        }}
+      >
+        {marketsTab === "polymarket" ? <PolymarketList /> : <MarketsList />}
       </Box>
     </Box>
   );
@@ -654,8 +665,8 @@ function HostRow({ host }: { host: (typeof ABOUT_HOSTS)[number] }) {
 function AboutTab() {
   const c = useColors();
   return (
-    <Box maxW="640px" w="100%">
-      <Text fontSize="sm" lineHeight={1.65} color={c.text.secondary}>
+    <Box maxW="640px" w="100%" mx="auto">
+      <Text fontSize="sm" lineHeight={1.65} color={c.text.secondary} textAlign="center">
         Market Bubble is a live markets show where Banks and Ansem break down crypto, trade ideas, and
         the week&apos;s biggest moves — unfiltered. Make money, command attention, leverage AI.
       </Text>
@@ -664,7 +675,7 @@ function AboutTab() {
           <HostRow key={h.id} host={h} />
         ))}
       </HStack>
-      <HStack mt="14px" spacing="7px">
+      <HStack mt="14px" spacing="7px" justify="center">
         {[
           { label: "Twitch", icon: <FaTwitch size={15} /> },
           { label: "Kick", icon: <SiKick size={13} /> },
@@ -980,7 +991,7 @@ type AudienceTabKey = "audience" | "about" | "history" | "clips";
 
 export function AudienceBox() {
   const c = useColors();
-  const [tab, setTab] = useState<AudienceTabKey>("audience");
+  const [tab, setTab] = usePersistentState<AudienceTabKey>("mb-audience-tab", "audience");
   const [active, setActive] = useState<ActiveMedia | null>(null);
   return (
     <Box
@@ -1002,7 +1013,7 @@ export function AudienceBox() {
         p="3px"
         mb="14px"
         flexShrink={0}
-        alignSelf="flex-start"
+        alignSelf="center"
       >
         <TabButton active={tab === "audience"} onClick={() => setTab("audience")}>
           AUDIENCE

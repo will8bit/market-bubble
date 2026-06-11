@@ -1,6 +1,6 @@
 import { randomBytes, createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { STREAMERS } from "./config";
+import { STREAMERS, ADMIN_USERS } from "./config";
 
 type Provider = "twitch" | "kick";
 
@@ -100,6 +100,13 @@ function backToApp(res: ServerResponse, sessionId?: string, error?: string) {
 function publicAccount(a?: Account) {
   if (!a) return null;
   return { username: a.username, displayName: a.displayName, avatar: a.avatar };
+}
+
+export function isAdmin(session?: Session): boolean {
+  if (!session) return false;
+  const u = session.twitch?.username?.toLowerCase();
+  const k = session.kick?.username?.toLowerCase();
+  return (!!u && ADMIN_USERS.has(u)) || (!!k && ADMIN_USERS.has(k));
 }
 
 async function startTwitch(res: ServerResponse, sessionId?: string) {
@@ -501,14 +508,14 @@ export async function handleAuthRequest(
   }
   if (path === "/auth/me") {
     const s = getSession(req);
-    json(res, 200, { twitch: publicAccount(s?.twitch), kick: publicAccount(s?.kick) });
+    json(res, 200, { twitch: publicAccount(s?.twitch), kick: publicAccount(s?.kick), admin: isAdmin(s) });
     return true;
   }
   if (path === "/auth/unlink") {
     const s = getSession(req);
     const provider = url.searchParams.get("provider");
     if (s && (provider === "twitch" || provider === "kick")) delete s[provider];
-    json(res, 200, { twitch: publicAccount(s?.twitch), kick: publicAccount(s?.kick) });
+    json(res, 200, { twitch: publicAccount(s?.twitch), kick: publicAccount(s?.kick), admin: isAdmin(s) });
     return true;
   }
   if (path === "/auth/logout") {

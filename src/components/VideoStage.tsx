@@ -7,7 +7,7 @@ import { SiKick } from "react-icons/si";
 import { LuEye } from "react-icons/lu";
 import { useColors } from "@/theme/useColors";
 import { useStats } from "@/lib/chat/StatsProvider";
-import { MarketBubbleMark } from "./Logo";
+import { MarketBubbleLockup } from "./LogoLockup";
 import { RollingNumber } from "./RollingNumber";
 
 const VIDEO_TWITCH = process.env.NEXT_PUBLIC_VIDEO_TWITCH;
@@ -176,24 +176,36 @@ function OfflineScreen() {
       direction="column"
       align="center"
       justify="center"
-      gap="16px"
+      gap="clamp(6px, 2cqw, 13px)"
       bg="#000"
       textAlign="center"
-      px="20px"
+      p="clamp(24px, 8cqw, 72px)"
+      sx={{ containerType: "inline-size" }}
     >
       <Box color="#fefefe">
-        <MarketBubbleMark size={42} />
+        <MarketBubbleLockup width="clamp(120px, 34cqw, 250px)" />
       </Box>
-      <Text fontFamily="heading" fontWeight={400} fontSize="4xl" color="#fefefe" lineHeight={1.1}>
+      <Text
+        fontFamily="heading"
+        fontWeight={400}
+        fontSize="clamp(14px, 4.2cqw, 28px)"
+        color="#fefefe"
+        lineHeight={1.1}
+      >
         We&apos;re offline
       </Text>
-      <VStack spacing="4px">
-        <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.12em" color="rgba(255,255,255,0.5)">
+      <VStack spacing="clamp(2px, 0.6cqw, 4px)">
+        <Text
+          fontFamily="mono"
+          fontSize="clamp(7px, 1.3cqw, 10px)"
+          letterSpacing="0.12em"
+          color="rgba(255,255,255,0.5)"
+        >
           NEXT EPISODE IN
         </Text>
         <RollingNumber
           value={fmtCountdown(target - now)}
-          fontSize="2xl"
+          fontSize="clamp(12px, 3.2cqw, 22px)"
           fontFamily="mono"
           fontWeight={600}
           color="#fefefe"

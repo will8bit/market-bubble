@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 
 type MarketsTab = "polymarket" | "markets";
 
@@ -37,16 +37,12 @@ function write(key: string, value: string) {
 }
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [reduceMotion, setReduceMotionState] = useState(false);
-  const [goLiveNotify, setGoLiveNotifyState] = useState(false);
-  const [marketsTab, setMarketsTabState] = useState<MarketsTab>("polymarket");
-
-  useEffect(() => {
-    if (read("mb-reduce-motion") === "true") setReduceMotionState(true);
-    if (read("mb-golive") === "true") setGoLiveNotifyState(true);
+  const [reduceMotion, setReduceMotionState] = useState(() => read("mb-reduce-motion") === "true");
+  const [goLiveNotify, setGoLiveNotifyState] = useState(() => read("mb-golive") === "true");
+  const [marketsTab, setMarketsTabState] = useState<MarketsTab>(() => {
     const mt = read("mb-markets-tab");
-    if (mt === "markets" || mt === "polymarket") setMarketsTabState(mt);
-  }, []);
+    return mt === "markets" || mt === "polymarket" ? mt : "polymarket";
+  });
 
   const setReduceMotion = (v: boolean) => {
     setReduceMotionState(v);

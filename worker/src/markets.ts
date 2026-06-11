@@ -83,7 +83,7 @@ export async function getPolymarket(): Promise<PolyMarket[]> {
         const url = slug ? `https://polymarket.com/event/${slug}` : "https://polymarket.com";
         out.push({ question: m.question, yes, no, endDate: m.endDate || "", url });
       } catch {}
-      if (out.length >= 5) break;
+      if (out.length >= 8) break;
     }
     return out;
   } catch {

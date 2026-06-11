@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback, memo, Fragment, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Box, HStack, VStack, Text, Flex, Input, Image } from "@chakra-ui/react";
+import { keyframes } from "@emotion/react";
 import {
   LuSearch,
   LuX,
@@ -16,15 +17,31 @@ import {
   LuBadgeCheck,
   LuAward,
   LuCrown,
-  LuGlobe,
 } from "react-icons/lu";
 import { FaTwitch, FaXTwitter } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
 import { ChatMessage, Platform, StreamerId, Badge, STREAMERS, PLATFORM_LABEL } from "@/lib/chat/types";
 import { useChatFeed } from "@/lib/chat/useChatFeed";
 import { getAvatar } from "@/lib/avatars";
+import { useSettings } from "@/lib/settings";
+import { usePersistentState } from "@/lib/usePersistentState";
 import { ChatComposer } from "./ChatComposer";
+import { MarketBubbleMark } from "./Logo";
 import { useColors } from "@/theme/useColors";
+
+const chatEnter = keyframes`
+  from { opacity: 0; transform: translateY(9px); }
+  to { opacity: 1; transform: translateY(0); }
+`;
+
+function loadIdArray(key: string, fallback: string[]): string[] {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw) return JSON.parse(raw) as string[];
+  } catch {}
+  return fallback;
+}
 
 type Colors = ReturnType<typeof useColors>;
 type Panel = "filters" | "settings" | null;
@@ -232,6 +249,8 @@ function SizeStepper({ value, onChange }: { value: number; onChange: (v: number)
 }
 
 type SourceStyle = "subtle" | "color" | "glow";
+type MsgStyle = "classic" | "cards";
+type NameColor = "native" | "platform";
 
 function SegSelect({
   value,
@@ -427,6 +446,9 @@ const ChatRow = memo(function ChatRow({
   showAvatars,
   showDetails,
   sourceStyle,
+  msgStyle,
+  nameColor,
+  isNew,
   size,
   onCashtag,
 }: {
@@ -437,6 +459,9 @@ const ChatRow = memo(function ChatRow({
   showAvatars: boolean;
   showDetails: boolean;
   sourceStyle: SourceStyle;
+  msgStyle: MsgStyle;
+  nameColor: NameColor;
+  isNew: boolean;
   size: number;
   onCashtag: (t: string) => void;
 }) {
@@ -450,14 +475,21 @@ const ChatRow = memo(function ChatRow({
     },
     []
   );
+  const chipClr = msg.multi ? c.text.primary : platformColor(c, msg.platform);
+  const nameClr =
+    nameColor === "platform"
+      ? msg.multi
+        ? c.brand.gold
+        : platformColor(c, msg.platform)
+      : msg.author.color;
   const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const detail = (
     <Box py="2px">
       {msg.multi ? (
         <>
-          <HStack spacing="5px" color={c.brand.gold}>
+          <HStack spacing="5px" color={c.text.primary}>
             <Box as="span" display="inline-flex">
-              <LuGlobe size={12} />
+              <MarketBubbleMark size={12} />
             </Box>
             <Text fontSize="2xs">{msg.multi.global ? "Sent everywhere" : "Multi-channel"}</Text>
           </HStack>
@@ -483,8 +515,9 @@ const ChatRow = memo(function ChatRow({
   return (
     <>
       <Box
-        px="16px"
+        px={msgStyle === "cards" ? "8px" : "16px"}
         py={compact ? "3px" : "6px"}
+        animation={isNew ? `${chatEnter} 0.45s cubic-bezier(0.16, 1, 0.3, 1) both` : undefined}
         _hover={{ bg: c.overlay.subtle }}
         onMouseEnter={(e) => {
           if (!showDetails) return;
@@ -500,70 +533,123 @@ const ChatRow = memo(function ChatRow({
           setPos(null);
         }}
       >
-      <Text fontSize={`${size}px`} lineHeight={1.5} color={c.text.secondary}>
-        {showIcons && (
-          <Box
-            as="span"
-            display="inline-flex"
-            verticalAlign="middle"
-            mr="7px"
-            color={
-              msg.multi
-                ? c.brand.gold
-                : sourceStyle === "subtle"
-                  ? c.text.subtle
-                  : platformColor(c, msg.platform)
-            }
-            sx={
-              !msg.multi && sourceStyle === "glow"
-                ? { filter: `drop-shadow(0 0 4px ${platformColor(c, msg.platform)})` }
-                : undefined
-            }
-          >
-            {msg.multi ? <LuGlobe size={11} /> : platformIcon(msg.platform)}
-          </Box>
-        )}
-        {showAvatars && !msg.multi && (
-          <Box as="span" display="inline-flex" verticalAlign="middle" mr="6px">
-            <Image
-              src={STREAMER_IMG[msg.streamer]}
-              alt=""
-              w="16px"
-              h="16px"
-              borderRadius="full"
-              objectFit="cover"
-            />
-          </Box>
-        )}
-        {showBadges &&
-          msg.author.badges.map((b, i) => (
+      {msgStyle === "cards" ? (
+        <Box border="1px solid" borderColor={c.border.subtle} borderRadius="10px" px="11px" py="7px">
+          <Text fontSize={`${size}px`} lineHeight={1.6} color={c.text.primary}>
             <Box
               as="span"
-              key={i}
               display="inline-flex"
               alignItems="center"
-              justifyContent="center"
-              w="15px"
-              h="15px"
-              borderRadius="4px"
-              bg={BADGE_META[b.type].color}
-              color="#fff"
-              mr="3px"
+              gap="5px"
               verticalAlign="middle"
+              mr="8px"
+              px="8px"
+              py="3px"
+              borderRadius="8px"
+              border="1px solid"
+              borderColor={chipClr}
+              bg={`${chipClr}14`}
+              color={chipClr}
+              fontSize="2xs"
+              fontWeight={700}
+              sx={{ boxShadow: `0 0 8px ${chipClr}44` }}
             >
-              {BADGE_META[b.type].icon}
+              {msg.multi ? <MarketBubbleMark size={11} /> : platformIcon(msg.platform)}
+              <Text as="span">{msg.multi ? "Global" : PLATFORM_LABEL[msg.platform]}</Text>
             </Box>
-          ))}
-        <Text as="span" fontWeight={700} color={msg.author.color}>
-          {msg.author.name}
+            {showBadges &&
+              msg.author.badges.map((b, i) => (
+                <Box
+                  as="span"
+                  key={i}
+                  display="inline-flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  w="15px"
+                  h="15px"
+                  borderRadius="4px"
+                  bg={BADGE_META[b.type].color}
+                  color="#fff"
+                  mr="3px"
+                  verticalAlign="middle"
+                >
+                  {BADGE_META[b.type].icon}
+                </Box>
+              ))}
+            <Text as="span" fontWeight={700} color={nameClr} verticalAlign="middle" mr="7px">
+              {msg.author.name}
+            </Text>
+            <Text as="span" color={c.text.primary} verticalAlign="middle">
+              {renderText(c, msg.text, onCashtag)}
+            </Text>
+          </Text>
+        </Box>
+      ) : (
+        <Text fontSize={`${size}px`} lineHeight={1.5} color={c.text.secondary}>
+          {showIcons && (
+            <Box
+              as="span"
+              display="inline-flex"
+              verticalAlign="middle"
+              mr="7px"
+              color={
+                msg.multi
+                  ? c.text.primary
+                  : sourceStyle === "subtle"
+                    ? c.text.subtle
+                    : platformColor(c, msg.platform)
+              }
+              sx={
+                !msg.multi && sourceStyle === "glow"
+                  ? { filter: `drop-shadow(0 0 4px ${platformColor(c, msg.platform)})` }
+                  : undefined
+              }
+            >
+              {msg.multi ? <MarketBubbleMark size={12} /> : platformIcon(msg.platform)}
+            </Box>
+          )}
+          {showAvatars && !msg.multi && (
+            <Box as="span" display="inline-flex" verticalAlign="middle" mr="6px">
+              <Image
+                src={STREAMER_IMG[msg.streamer]}
+                alt=""
+                w="16px"
+                h="16px"
+                borderRadius="full"
+                objectFit="cover"
+              />
+            </Box>
+          )}
+          {showBadges &&
+            msg.author.badges.map((b, i) => (
+              <Box
+                as="span"
+                key={i}
+                display="inline-flex"
+                alignItems="center"
+                justifyContent="center"
+                w="15px"
+                h="15px"
+                borderRadius="4px"
+                bg={BADGE_META[b.type].color}
+                color="#fff"
+                mr="3px"
+                verticalAlign="middle"
+              >
+                {BADGE_META[b.type].icon}
+              </Box>
+            ))}
+          <Text as="span" fontWeight={700} color={nameClr}>
+            {msg.author.name}
+          </Text>
+          <Text as="span" color={c.text.subtle}>
+            :{" "}
+          </Text>
+          <Text as="span" color={c.text.primary}>
+            {renderText(c, msg.text, onCashtag)}
+          </Text>
         </Text>
-        <Text as="span" color={c.text.subtle}>
-          :{" "}
-        </Text>
-        <Text as="span" color={c.text.primary}>
-          {renderText(c, msg.text, onCashtag)}
-        </Text>
-      </Text>
+      )}
       </Box>
       {showDetails && show && pos &&
         createPortal(
@@ -593,27 +679,48 @@ const ChatRow = memo(function ChatRow({
 
 export function ChatPanel() {
   const c = useColors();
-  const [platforms, setPlatforms] = useState<Set<Platform>>(new Set(PLATFORMS));
-  const [streamers, setStreamers] = useState<Set<StreamerId>>(
-    new Set(STREAMERS.map((s) => s.id))
+  const [platforms, setPlatforms] = useState<Set<Platform>>(
+    () => new Set(loadIdArray("mb-chat-platforms", [...PLATFORMS]) as Platform[])
   );
-  const [global, setGlobal] = useState(true);
+  const [streamers, setStreamers] = useState<Set<StreamerId>>(
+    () => new Set(loadIdArray("mb-chat-streamers", STREAMERS.map((s) => s.id)) as StreamerId[])
+  );
+  const [global, setGlobal] = usePersistentState("mb-chat-global", true);
+  useEffect(() => {
+    try {
+      localStorage.setItem("mb-chat-platforms", JSON.stringify([...platforms]));
+    } catch {}
+  }, [platforms]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("mb-chat-streamers", JSON.stringify([...streamers]));
+    } catch {}
+  }, [streamers]);
   const [query, setQuery] = useState("");
   const [cashtag, setCashtag] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
 
-  const [hideCommands, setHideCommands] = useState(false);
-  const [compact, setCompact] = useState(false);
-  const [showBadges, setShowBadges] = useState(true);
-  const [showIcons, setShowIcons] = useState(true);
-  const [showAvatars, setShowAvatars] = useState(true);
-  const [showDetails, setShowDetails] = useState(true);
-  const [sourceStyle, setSourceStyle] = useState<SourceStyle>("color");
-  const [chatSize, setChatSize] = useState(13);
+  const [hideCommands, setHideCommands] = usePersistentState("mb-chat-hideCommands", false);
+  const [compact, setCompact] = usePersistentState("mb-chat-compact", false);
+  const [showBadges, setShowBadges] = usePersistentState("mb-chat-showBadges", true);
+  const [showIcons, setShowIcons] = usePersistentState("mb-chat-showIcons", true);
+  const [showAvatars, setShowAvatars] = usePersistentState("mb-chat-showAvatars", true);
+  const [showDetails, setShowDetails] = usePersistentState("mb-chat-showDetails", true);
+  const [sourceStyle, setSourceStyle] = usePersistentState<SourceStyle>("mb-chat-sourceStyle", "color");
+  const [msgStyle, setMsgStyle] = usePersistentState<MsgStyle>("mb-chat-msgStyle", "classic");
+  const [nameColor, setNameColor] = usePersistentState<NameColor>("mb-chat-nameColor", "native");
+  const [animate, setAnimate] = usePersistentState("mb-chat-animate", true);
+  const [chatSize, setChatSize] = usePersistentState("mb-chat-size", 13);
 
   const [atBottom, setAtBottom] = useState(true);
 
+  const { reduceMotion } = useSettings();
   const { messages, echoSelf, removeLocal } = useChatFeed(!atBottom);
+  const initialIdsRef = useRef<Set<string> | null>(null);
+  if (initialIdsRef.current === null && messages.length > 0) {
+    initialIdsRef.current = new Set(messages.map((m) => m.id));
+  }
+  const animateOn = animate && !reduceMotion;
   const scrollRef = useRef<HTMLDivElement>(null);
   const handleCashtag = useCallback((t: string) => setCashtag(t), []);
 
@@ -627,12 +734,13 @@ export function ChatPanel() {
       setPlatforms(new Set([p]));
       return;
     }
-    setPlatforms((prev) => {
-      const next = new Set(prev);
-      if (next.has(p)) next.delete(p);
-      else next.add(p);
-      return next;
-    });
+    const next = new Set(platforms);
+    if (next.has(p)) next.delete(p);
+    else next.add(p);
+    if (next.size === PLATFORMS.length && streamers.size === STREAMERS.length) {
+      setGlobal(true);
+    }
+    setPlatforms(next);
   }
 
   function toggleStreamer(s: StreamerId) {
@@ -641,12 +749,13 @@ export function ChatPanel() {
       setStreamers(new Set([s]));
       return;
     }
-    setStreamers((prev) => {
-      const next = new Set(prev);
-      if (next.has(s)) next.delete(s);
-      else next.add(s);
-      return next;
-    });
+    const next = new Set(streamers);
+    if (next.has(s)) next.delete(s);
+    else next.add(s);
+    if (next.size === STREAMERS.length && platforms.size === PLATFORMS.length) {
+      setGlobal(true);
+    }
+    setStreamers(next);
   }
 
   function selectGlobal() {
@@ -829,7 +938,22 @@ export function ChatPanel() {
         </VStack>
       )}
 
-      <Box ref={scrollRef} onScroll={onScroll} flex="1" overflowY="auto" py="8px" position="relative">
+      <Box
+        ref={scrollRef}
+        onScroll={onScroll}
+        flex="1"
+        overflowY="auto"
+        py="8px"
+        position="relative"
+        sx={{
+          scrollbarWidth: "thin",
+          scrollbarColor: `${c.overlay.strong} transparent`,
+          "&::-webkit-scrollbar": { width: "7px" },
+          "&::-webkit-scrollbar-thumb": { background: c.overlay.strong, borderRadius: "4px" },
+          "&::-webkit-scrollbar-thumb:hover": { background: c.border.strong },
+          "&::-webkit-scrollbar-track": { background: "transparent" },
+        }}
+      >
         {filtered.map((m) => (
           <ChatRow
             key={m.id}
@@ -840,6 +964,9 @@ export function ChatPanel() {
             showAvatars={showAvatars}
             showDetails={showDetails}
             sourceStyle={sourceStyle}
+            msgStyle={msgStyle}
+            nameColor={nameColor}
+            isNew={animateOn && initialIdsRef.current !== null && !initialIdsRef.current.has(m.id)}
             size={chatSize}
             onCashtag={handleCashtag}
           />
@@ -880,6 +1007,33 @@ export function ChatPanel() {
           borderColor={c.border.subtle}
         >
           <GroupLabel>APPEARANCE</GroupLabel>
+          <Flex align="center" justify="space-between" py="9px">
+            <Text fontSize="sm" color={c.text.primary}>
+              Message style
+            </Text>
+            <SegSelect
+              value={msgStyle}
+              options={[
+                { label: "Classic", val: "classic" },
+                { label: "Cards", val: "cards" },
+              ]}
+              onChange={(v) => setMsgStyle(v as MsgStyle)}
+            />
+          </Flex>
+          <Flex align="center" justify="space-between" py="9px">
+            <Text fontSize="sm" color={c.text.primary}>
+              Username color
+            </Text>
+            <SegSelect
+              value={nameColor}
+              options={[
+                { label: "Native", val: "native" },
+                { label: "Platform", val: "platform" },
+              ]}
+              onChange={(v) => setNameColor(v as NameColor)}
+            />
+          </Flex>
+          <SettingRow label="Animated messages" on={animate} onToggle={() => setAnimate((v) => !v)} />
           <Flex align="center" justify="space-between" py="9px">
             <Text fontSize="sm" color={c.text.primary}>
               Text size

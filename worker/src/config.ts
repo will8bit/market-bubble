@@ -2,6 +2,13 @@ import { StreamerConfig, StreamerId } from "./types";
 
 export const CHAT_CHANNEL = process.env.CHAT_CHANNEL || "market-bubble-chat";
 
+export const ADMIN_USERS = new Set(
+  (process.env.ADMIN_USERS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+);
+
 function num(value: string | undefined): number | undefined {
   if (!value) return undefined;
   const n = Number(value);

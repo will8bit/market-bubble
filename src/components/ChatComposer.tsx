@@ -19,10 +19,11 @@ import {
 } from "@chakra-ui/react";
 import { FaTwitch, FaXTwitter } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
-import { LuChevronUp, LuCheck, LuGlobe, LuSmile, LuSettings } from "react-icons/lu";
+import { LuChevronUp, LuCheck, LuSmile, LuSettings } from "react-icons/lu";
 import { Platform, StreamerId, STREAMERS } from "@/lib/chat/types";
 import { useAuth, type Provider } from "@/lib/auth";
 import { useAvatar, getAvatar } from "@/lib/avatars";
+import { MarketBubbleMark } from "./Logo";
 import { useColors } from "@/theme/useColors";
 
 const SEND_PLATFORMS: Provider[] = ["twitch", "kick"];
@@ -303,8 +304,8 @@ export function ChatComposer({
           >
             {isGlobal ? (
               <>
-                <Box color={c.brand.gold} display="flex" flexShrink={0}>
-                  <LuGlobe size={13} />
+                <Box color={c.text.primary} display="flex" flexShrink={0}>
+                  <MarketBubbleMark size={14} />
                 </Box>
                 <Text fontSize="xs" color={c.text.secondary} noOfLines={1}>
                   Global
@@ -403,8 +404,8 @@ export function ChatComposer({
                   _hover={{ bg: c.overlay.hover }}
                 >
                   <HStack spacing="8px">
-                    <Box color={c.brand.gold} display="flex">
-                      <LuGlobe size={13} />
+                    <Box color={c.text.primary} display="flex">
+                      <MarketBubbleMark size={14} />
                     </Box>
                     <Text fontSize="sm" color={c.text.primary}>
                       Global

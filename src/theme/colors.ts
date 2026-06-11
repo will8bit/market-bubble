@@ -6,10 +6,10 @@ const palette = {
     surfaceRaised: "#222222",
   },
   light: {
-    bg: "#f5f4eb",
-    surface: "#faf9f1",
-    surfaceLight: "#fdfcf7",
-    surfaceRaised: "#ffffff",
+    bg: "#e8e0d3",
+    surface: "#efe8db",
+    surfaceLight: "#f3ece1",
+    surfaceRaised: "#f8f3ea",
   },
 
   darkText: {
@@ -20,11 +20,11 @@ const palette = {
     placeholder: "#4a4a4a",
   },
   lightText: {
-    primary: "#0b0b0b",
-    secondary: "#3a3a3a",
-    muted: "#6f6f6f",
-    subtle: "#9a978f",
-    placeholder: "#c9c6bd",
+    primary: "#201c14",
+    secondary: "#473f33",
+    muted: "#6c6456",
+    subtle: "#9a9082",
+    placeholder: "#c2b8a6",
   },
 
   darkBorder: {

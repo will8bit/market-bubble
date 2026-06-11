@@ -1,12 +1,41 @@
 "use client";
 
 import { HStack, Text, Flex, Box } from "@chakra-ui/react";
-import { LuLayoutDashboard } from "react-icons/lu";
+import { LuLayoutDashboard, LuShield } from "react-icons/lu";
 import { Logo } from "./Logo";
 import { TickerBar } from "./TickerBar";
 import { ProfileMenu } from "./ProfileMenu";
 import { useProMode } from "@/lib/proMode";
+import { useAuth } from "@/lib/auth";
 import { useColors } from "@/theme/useColors";
+
+function AdminButton() {
+  const c = useColors();
+  const { admin } = useAuth();
+  if (!admin) return null;
+  return (
+    <HStack
+      as="a"
+      href="/admin"
+      spacing="7px"
+      px="11px"
+      py="7px"
+      borderRadius={c.radius.pill}
+      bg={c.overlay.soft}
+      border="1px solid"
+      borderColor={c.border.subtle}
+      color={c.text.secondary}
+      _hover={{ color: c.text.primary, bg: c.overlay.hover }}
+      transition="all 0.15s"
+      aria-label="Admin dashboard"
+    >
+      <LuShield size={15} />
+      <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.1em">
+        ADMIN
+      </Text>
+    </HStack>
+  );
+}
 
 function ProToggle() {
   const c = useColors();
@@ -60,6 +89,7 @@ export function TopBar() {
 
       <HStack spacing={{ base: "8px", md: "10px" }} flexShrink={0}>
         <ProToggle />
+        <AdminButton />
         <ProfileMenu />
       </HStack>
     </Flex>

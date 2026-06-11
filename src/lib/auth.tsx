@@ -26,6 +26,7 @@ export interface SendTarget {
 interface AuthState {
   twitch: LinkedAccount | null;
   kick: LinkedAccount | null;
+  admin: boolean;
   ready: boolean;
   enabled: boolean;
   login: (provider: Provider) => void;
@@ -37,6 +38,7 @@ interface AuthState {
 const Context = createContext<AuthState>({
   twitch: null,
   kick: null,
+  admin: false,
   ready: false,
   enabled: false,
   login: () => {},
@@ -58,6 +60,7 @@ function getSession(): string {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [twitch, setTwitch] = useState<LinkedAccount | null>(null);
   const [kick, setKick] = useState<LinkedAccount | null>(null);
+  const [admin, setAdmin] = useState(false);
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -69,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!session) {
       setTwitch(null);
       setKick(null);
+      setAdmin(false);
       setReady(true);
       return;
     }
@@ -77,9 +81,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: { authorization: `Bearer ${session}` },
       });
       if (res.ok) {
-        const d = (await res.json()) as { twitch: LinkedAccount | null; kick: LinkedAccount | null };
+        const d = (await res.json()) as {
+          twitch: LinkedAccount | null;
+          kick: LinkedAccount | null;
+          admin?: boolean;
+        };
         setTwitch(d.twitch);
         setKick(d.kick);
+        setAdmin(Boolean(d.admin));
       }
     } catch {}
     setReady(true);
@@ -144,6 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {}
     setTwitch(null);
     setKick(null);
+    setAdmin(false);
   }, []);
 
   const send = useCallback(
@@ -176,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <Context.Provider
-      value={{ twitch, kick, ready, enabled: Boolean(WORKER), login, unlink, logout, send }}
+      value={{ twitch, kick, admin, ready, enabled: Boolean(WORKER), login, unlink, logout, send }}
     >
       {children}
     </Context.Provider>
