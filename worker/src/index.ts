@@ -78,10 +78,10 @@ async function main() {
   }
 
   await pushStats();
-  const statsTimer = setInterval(pushStats, 30000);
+  const statsTimer = setInterval(pushStats, 15000);
   const marketTimer = setInterval(async () => {
     [crypto, poly] = await Promise.all([getCrypto(), getPolymarket()]);
-  }, 45000);
+  }, 300000);
   const mediaTimer = setInterval(async () => {
     media = await getTwitchMedia(STREAMERS);
   }, 900000);

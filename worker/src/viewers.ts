@@ -58,19 +58,51 @@ export async function getTwitchViewers(logins: string[]): Promise<Record<string,
   }
 }
 
+const kickCache = new Map<string, { viewers: number; at: number }>();
+const KICK_STALE_MS = 180000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+type KickFetch = { ok: false } | { ok: true; live: boolean; viewers: number };
+
+async function fetchKickOnce(slug: string): Promise<KickFetch> {
+  const res = await fetch(`https://kick.com/api/v2/channels/${slug}`, {
+    headers: { "User-Agent": UA, accept: "application/json" },
+  });
+  if (!res.ok) return { ok: false };
+  const d = (await res.json()) as { livestream?: { is_live?: boolean; viewer_count?: number } | null };
+  const live = Boolean(d.livestream && d.livestream.is_live);
+  return { ok: true, live, viewers: d.livestream?.viewer_count || 0 };
+}
+
 export async function getKickViewers(slugs: string[]): Promise<Record<string, number>> {
   const out: Record<string, number> = {};
   for (const slug of slugs) {
+    const key = slug.toLowerCase();
+    let r: KickFetch;
     try {
-      const res = await fetch(`https://kick.com/api/v2/channels/${slug}`, {
-        headers: { "User-Agent": UA, accept: "application/json" },
-      });
-      if (!res.ok) continue;
-      const d = (await res.json()) as { livestream?: { is_live?: boolean; viewer_count?: number } | null };
-      if (d.livestream && d.livestream.is_live) {
-        out[slug.toLowerCase()] = d.livestream.viewer_count || 0;
+      r = await fetchKickOnce(slug);
+    } catch {
+      r = { ok: false };
+    }
+    if (!r.ok) {
+      await sleep(400);
+      try {
+        r = await fetchKickOnce(slug);
+      } catch {
+        r = { ok: false };
       }
-    } catch {}
+    }
+
+    if (r.ok && r.live) {
+      out[key] = r.viewers;
+      kickCache.set(key, { viewers: r.viewers, at: Date.now() });
+    } else if (r.ok && !r.live) {
+      kickCache.delete(key);
+    } else {
+      const cached = kickCache.get(key);
+      if (cached && Date.now() - cached.at < KICK_STALE_MS) out[key] = cached.viewers;
+    }
   }
   return out;
 }
