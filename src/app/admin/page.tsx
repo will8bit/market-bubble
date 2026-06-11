@@ -15,6 +15,11 @@ export default function AdminPage() {
   const { admin, ready } = useAuth();
   const { messages } = useChatFeed(false);
 
+  // TEMP: open the admin dashboard to everyone (no login) so the competition
+  // judges can view it. Set this back to false to re-lock it to admins only.
+  const PUBLIC_ADMIN = true;
+  const canView = PUBLIC_ADMIN || admin;
+
   return (
     <Flex
       direction="column"
@@ -27,7 +32,7 @@ export default function AdminPage() {
     >
       <TopBar />
 
-      {!ready ? (
+      {!canView && !ready ? (
         <Flex flex="1" align="center" justify="center">
           <Spinner
             size="lg"
@@ -37,7 +42,7 @@ export default function AdminPage() {
             emptyColor={c.overlay.soft}
           />
         </Flex>
-      ) : !admin ? (
+      ) : !canView ? (
         <Flex flex="1" direction="column" align="center" justify="center" gap="12px" textAlign="center" px="20px">
           <Text fontFamily="heading" fontWeight={400} fontSize="3xl" color={c.text.primary}>
             Not authorized
