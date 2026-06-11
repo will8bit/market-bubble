@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Flex, Text, Spinner } from "@chakra-ui/react";
 import { TopBar } from "@/components/TopBar";
 import { VideoStage } from "@/components/VideoStage";
 import { AudienceBox } from "@/components/ProPanels";
@@ -29,9 +29,13 @@ export default function AdminPage() {
 
       {!ready ? (
         <Flex flex="1" align="center" justify="center">
-          <Text fontFamily="mono" fontSize="sm" color={c.text.muted}>
-            Loading…
-          </Text>
+          <Spinner
+            size="lg"
+            thickness="3px"
+            speed="0.7s"
+            color={c.text.secondary}
+            emptyColor={c.overlay.soft}
+          />
         </Flex>
       ) : !admin ? (
         <Flex flex="1" direction="column" align="center" justify="center" gap="12px" textAlign="center" px="20px">
@@ -116,7 +120,7 @@ export default function AdminPage() {
             boxShadow={c.shadow.soft}
             overflow="hidden"
           >
-            <ChatPanel />
+            <ChatPanel searchBar />
           </Box>
         </Flex>
       )}

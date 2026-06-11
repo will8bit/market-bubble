@@ -10,9 +10,11 @@ import type { ChatMessage } from "@/lib/chat/types";
 import { useSettings } from "@/lib/settings";
 import { usePersistentState } from "@/lib/usePersistentState";
 import { RollingNumber } from "./RollingNumber";
+import { Skel } from "./Skeleton";
 import { PoppedOut } from "./PoppedOut";
 import { usePopoutHost, usePopoutClient } from "@/lib/usePopout";
 import { useAvatar } from "@/lib/avatars";
+import { scrollbarSx } from "@/theme/scrollbar";
 import { useColors } from "@/theme/useColors";
 
 const AUDIENCE_POPOUT_URL = "/popout/marketbubble/audience?popout=";
@@ -54,7 +56,7 @@ function Card({ title, children, ...rest }: { title: string; children: React.Rea
       >
         {title}
       </Text>
-      <Box flex="1" minH={0} overflowY="auto">
+      <Box flex="1" minH={0} overflowY="auto" sx={scrollbarSx(c)}>
         {children}
       </Box>
     </Box>
@@ -67,6 +69,43 @@ function Empty() {
     <Text fontFamily="mono" fontSize="xs" color={c.text.subtle}>
       —
     </Text>
+  );
+}
+
+function MarketRowSkeleton() {
+  return (
+    <Flex align="center" gap="12px" py="5px">
+      <Skel w="52px" h="14px" />
+      <Box flex="1" minW={0}>
+        <Skel w="100%" h="16px" rounded="4px" />
+      </Box>
+      <Box textAlign="right" flexShrink={0} minW="62px">
+        <Skel w="44px" h="11px" ml="auto" />
+        <Skel w="30px" h="9px" mt="5px" ml="auto" />
+      </Box>
+    </Flex>
+  );
+}
+
+function PolyCardSkeleton() {
+  const c = useColors();
+  return (
+    <Box
+      bg={c.surfaceLight}
+      border="1px solid"
+      borderColor={c.border.subtle}
+      borderRadius={c.radius.card}
+      p="12px"
+    >
+      <Skel w="90%" h="13px" />
+      <Skel w="55%" h="13px" mt="6px" />
+      <Skel w="40%" h="9px" mt="10px" />
+      <Skel w="100%" h="6px" mt="11px" rounded="full" />
+      <HStack spacing="8px" mt="11px">
+        <Skel w="100%" h="29px" rounded="10px" />
+        <Skel w="100%" h="29px" rounded="10px" />
+      </HStack>
+    </Box>
   );
 }
 
@@ -124,14 +163,28 @@ function MarketRow({ m }: { m: MarketQuote }) {
   );
 }
 
-function MarketGroup({ title, rows }: { title: string; rows: MarketQuote[] }) {
+function MarketGroup({
+  title,
+  rows,
+  loading,
+}: {
+  title: string;
+  rows: MarketQuote[];
+  loading?: boolean;
+}) {
   const c = useColors();
   return (
     <Box>
       <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.1em" color={c.text.subtle} mb="6px">
         {title}
       </Text>
-      {rows.length === 0 ? (
+      {loading && rows.length === 0 ? (
+        <Flex direction="column" gap="1px">
+          {[0, 1, 2, 3].map((i) => (
+            <MarketRowSkeleton key={i} />
+          ))}
+        </Flex>
+      ) : rows.length === 0 ? (
         <Empty />
       ) : (
         <Flex direction="column" gap="1px">
@@ -193,7 +246,7 @@ function MarketsList() {
   const stats = useStats();
   return (
     <Flex direction="column" gap="16px">
-      <MarketGroup title="CRYPTO" rows={(stats?.markets.crypto ?? []).slice(0, 4)} />
+      <MarketGroup title="CRYPTO" rows={(stats?.markets.crypto ?? []).slice(0, 4)} loading={!stats} />
       <MarketGroup title="INDICES" rows={EXAMPLE_STOCKS} />
       <MarketGroup title="COMMODITIES" rows={EXAMPLE_COMMODITIES} />
     </Flex>
@@ -282,7 +335,16 @@ function PolyCard({
 
 function PolymarketList() {
   const stats = useStats();
-  const markets = stats?.markets.polymarket ?? [];
+  if (!stats) {
+    return (
+      <Flex direction="column" gap="10px">
+        {[0, 1, 2, 3].map((i) => (
+          <PolyCardSkeleton key={i} />
+        ))}
+      </Flex>
+    );
+  }
+  const markets = stats.markets.polymarket ?? [];
   if (markets.length === 0) return <Empty />;
   return (
     <Flex direction="column" gap="10px">
@@ -355,19 +417,7 @@ export function MarketsPanel() {
           MARKETS
         </TabButton>
       </HStack>
-      <Box
-        flex="1"
-        minH={0}
-        overflowY="auto"
-        sx={{
-          scrollbarWidth: "thin",
-          scrollbarColor: `${c.overlay.strong} transparent`,
-          "&::-webkit-scrollbar": { width: "7px" },
-          "&::-webkit-scrollbar-thumb": { background: c.overlay.strong, borderRadius: "4px" },
-          "&::-webkit-scrollbar-thumb:hover": { background: c.border.strong },
-          "&::-webkit-scrollbar-track": { background: "transparent" },
-        }}
-      >
+      <Box flex="1" minH={0} overflowY="auto" sx={scrollbarSx(c)}>
         {marketsTab === "polymarket" ? <PolymarketList /> : <MarketsList />}
       </Box>
     </Box>
@@ -457,8 +507,36 @@ function TileShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function BigNumber({ value, fallback }: { value: number | null; fallback: string }) {
+function StreamerLineSkeleton() {
+  return (
+    <Flex justify="space-between" align="center">
+      <HStack spacing="0.5625em">
+        <Skel w="1.375em" h="1.375em" rounded="full" />
+        <Skel w="4em" h="0.85em" />
+      </HStack>
+      <Skel w="2.2em" h="0.85em" />
+    </Flex>
+  );
+}
+
+function TotalRowSkeleton({ label, color }: { label: string; color?: string }) {
   const c = useColors();
+  return (
+    <Flex justify="space-between" align="center" minH="1.375em">
+      <HStack spacing="0.5625em">
+        <Box w="0.5em" h="0.5em" borderRadius="full" bg={color || c.text.muted} flexShrink={0} />
+        <Text fontSize={AUD_ROW} color={c.text.secondary}>
+          {label}
+        </Text>
+      </HStack>
+      <Skel w="2.2em" h="0.85em" />
+    </Flex>
+  );
+}
+
+function BigNumber({ value, fallback, loading }: { value: number | null; fallback: string; loading?: boolean }) {
+  const c = useColors();
+  if (loading) return <Skel w="62%" h={AUD_NUM} rounded="8px" />;
   if (value == null) {
     return (
       <Text fontFamily="body" fontWeight={500} fontSize={AUD_NUM} lineHeight="1" color={c.text.subtle}>
@@ -473,10 +551,12 @@ function PlatformTile({
   name,
   total,
   rows,
+  loading,
 }: {
   name: string;
   total: number | null;
   rows: { name: string; value: number | null; color: string; img: string }[];
+  loading?: boolean;
 }) {
   const c = useColors();
   return (
@@ -491,7 +571,7 @@ function PlatformTile({
         {name.toUpperCase()}
       </Text>
 
-      <BigNumber value={total} fallback="offline" />
+      <BigNumber value={total} fallback="offline" loading={loading} />
 
       <Flex
         direction="column"
@@ -501,9 +581,11 @@ function PlatformTile({
         borderTop="1px solid"
         borderColor={c.border.subtle}
       >
-        {rows.map((r) => (
-          <StreamerLine key={r.name} name={r.name} value={r.value} color={r.color} img={r.img} />
-        ))}
+        {loading
+          ? [0, 1].map((i) => <StreamerLineSkeleton key={i} />)
+          : rows.map((r) => (
+              <StreamerLine key={r.name} name={r.name} value={r.value} color={r.color} img={r.img} />
+            ))}
       </Flex>
     </TileShell>
   );
@@ -513,10 +595,12 @@ function TotalTile({
   total,
   site,
   peak,
+  loading,
 }: {
   total: number | null;
   site: number | null;
   peak: number | null;
+  loading?: boolean;
 }) {
   const c = useColors();
   return (
@@ -531,7 +615,7 @@ function TotalTile({
         TOTAL
       </Text>
 
-      <BigNumber value={total} fallback="—" />
+      <BigNumber value={total} fallback="—" loading={loading} />
 
       <Flex
         direction="column"
@@ -541,8 +625,17 @@ function TotalTile({
         borderTop="1px solid"
         borderColor={c.border.subtle}
       >
-        <TotalRow label="On Market Bubble" value={site} color={c.brand.red} />
-        <TotalRow label="Peak" value={peak} />
+        {loading ? (
+          <>
+            <TotalRowSkeleton label="On Market Bubble" color={c.brand.red} />
+            <TotalRowSkeleton label="Peak" />
+          </>
+        ) : (
+          <>
+            <TotalRow label="On Market Bubble" value={site} color={c.brand.red} />
+            <TotalRow label="Peak" value={peak} />
+          </>
+        )}
       </Flex>
     </TileShell>
   );
@@ -582,6 +675,7 @@ type ActiveMedia = { kind: "clip" | "video"; id: string; title: string; url: str
 function AudienceTab({ admin = false, messages = [] }: { admin?: boolean; messages?: ChatMessage[] }) {
   const c = useColors();
   const stats = useStats();
+  const loading = !stats;
   const v = stats?.viewers;
   const streamers = v?.streamers ?? [];
   return (
@@ -595,6 +689,7 @@ function AudienceTab({ admin = false, messages = [] }: { admin?: boolean; messag
       >
         <PlatformTile
           name="Twitch"
+          loading={loading}
           total={v?.twitch ?? null}
           rows={streamers.map((s) => ({
             name: s.name,
@@ -605,6 +700,7 @@ function AudienceTab({ admin = false, messages = [] }: { admin?: boolean; messag
         />
         <PlatformTile
           name="Kick"
+          loading={loading}
           total={v?.kick ?? null}
           rows={streamers.map((s) => ({
             name: s.name,
@@ -613,7 +709,7 @@ function AudienceTab({ admin = false, messages = [] }: { admin?: boolean; messag
             img: STREAMER_IMG[s.id] || "",
           }))}
         />
-        <TotalTile total={v?.total ?? null} site={v?.site ?? null} peak={v?.peak ?? null} />
+        <TotalTile loading={loading} total={v?.total ?? null} site={v?.site ?? null} peak={v?.peak ?? null} />
       </Flex>
 
       {admin && <AdminAudienceExtras messages={messages} startedAt={v?.twitchStartedAt ?? null} />}
@@ -1253,6 +1349,18 @@ type MediaItem = {
   media: ActiveMedia;
 };
 
+function MediaThumbSkeleton() {
+  return (
+    <Box>
+      <Box position="relative" w="100%" sx={{ aspectRatio: "16 / 9" }}>
+        <Skel position="absolute" inset="0" w="100%" h="100%" rounded="12px" />
+      </Box>
+      <Skel w="85%" h="12px" mt="9px" />
+      <Skel w="48%" h="9px" mt="7px" />
+    </Box>
+  );
+}
+
 function MediaList({
   kind,
   onOpen,
@@ -1263,6 +1371,20 @@ function MediaList({
   const c = useColors();
   const stats = useStats();
   const [filter, setFilter] = useState("all");
+
+  if (!stats) {
+    return (
+      <Box
+        display="grid"
+        gap="10px"
+        sx={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}
+      >
+        {[0, 1, 2, 3].map((i) => (
+          <MediaThumbSkeleton key={i} />
+        ))}
+      </Box>
+    );
+  }
 
   const items: MediaItem[] =
     kind === "clips"
@@ -1415,7 +1537,7 @@ export function AudienceBox({
   const poppedOut = usePopoutHost("audience", admin && !popout);
   const [tab, setTab] = usePersistentState<AudienceTabKey>(
     admin ? "mb-admin-audience-tab" : "mb-audience-tab",
-    "audience"
+    admin ? "audience" : "about"
   );
   const [active, setActive] = useState<ActiveMedia | null>(null);
 
@@ -1520,16 +1642,7 @@ export function AudienceBox({
         flex={admin ? "1" : undefined}
         minH={admin ? 0 : undefined}
         overflowY={admin ? "auto" : "visible"}
-        sx={
-          admin
-            ? {
-                scrollbarWidth: "thin",
-                "&::-webkit-scrollbar": { width: "7px" },
-                "&::-webkit-scrollbar-thumb": { background: c.border.default, borderRadius: "4px" },
-                "&::-webkit-scrollbar-track": { background: "transparent" },
-              }
-            : undefined
-        }
+        sx={admin ? scrollbarSx(c) : undefined}
       >
         {current === "audience" && <AudienceTab admin={admin} messages={messages} />}
         {current === "about" && !admin && <AboutTab />}

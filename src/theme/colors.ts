@@ -78,6 +78,7 @@ const palette = {
 
 export function colors(isDark: boolean) {
   return {
+    isDark,
     bg: isDark ? palette.dark.bg : palette.light.bg,
     surface: isDark ? palette.dark.surface : palette.light.surface,
     surfaceLight: isDark ? palette.dark.surfaceLight : palette.light.surfaceLight,

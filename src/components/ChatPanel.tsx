@@ -27,8 +27,10 @@ import { useSettings } from "@/lib/settings";
 import { usePersistentState } from "@/lib/usePersistentState";
 import { ChatComposer } from "./ChatComposer";
 import { MarketBubbleMark } from "./Logo";
+import { Skel } from "./Skeleton";
 import { PoppedOut } from "./PoppedOut";
 import { usePopoutHost, usePopoutClient } from "@/lib/usePopout";
+import { scrollbarSx } from "@/theme/scrollbar";
 import { useColors } from "@/theme/useColors";
 
 const CHAT_POPOUT_URL = "/popout/marketbubble/chat?popout=";
@@ -256,7 +258,16 @@ function SizeStepper({ value, onChange }: { value: number; onChange: (v: number)
 
 type SourceStyle = "subtle" | "color" | "glow";
 type MsgStyle = "classic" | "cards";
-type NameColor = "native" | "platform";
+type NameColor = "native" | "platform" | "pastel";
+
+function pastelColor(name: string, isDark: boolean): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (Math.imul(h, 31) + name.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  const sat = isDark ? 38 : 40;
+  const light = isDark ? 72 : 50;
+  return `hsl(${hue}deg ${sat}% ${light}%)`;
+}
 
 function SegSelect({
   value,
@@ -491,7 +502,9 @@ const ChatRow = memo(function ChatRow({
       ? msg.multi
         ? c.brand.gold
         : platformColor(c, msg.platform)
-      : msg.author.color;
+      : nameColor === "pastel"
+        ? pastelColor(msg.author.name, c.isDark)
+        : msg.author.color;
   const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const detail = (
     <Box py="2px">
@@ -700,7 +713,27 @@ const ChatRow = memo(function ChatRow({
   );
 });
 
-export function ChatPanel({ popout = false }: { popout?: boolean } = {}) {
+function ChatSkeleton() {
+  const rows = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+  return (
+    <Box>
+      {rows.map((i) => (
+        <Box key={i} px="16px" py="6px">
+          <HStack spacing="8px" align="center">
+            <Skel w="16px" h="16px" rounded="full" />
+            <Skel w={`${56 + ((i * 37) % 72)}px`} h="11px" />
+          </HStack>
+          <Skel w={`${48 + ((i * 53) % 46)}%`} h="11px" mt="6px" />
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+export function ChatPanel({
+  popout = false,
+  searchBar = false,
+}: { popout?: boolean; searchBar?: boolean } = {}) {
   const c = useColors();
   usePopoutClient("chat", popout);
   const poppedOut = usePopoutHost("chat", !popout);
@@ -733,7 +766,7 @@ export function ChatPanel({ popout = false }: { popout?: boolean } = {}) {
   const [showDetails, setShowDetails] = usePersistentState("mb-chat-showDetails", true);
   const [sourceStyle, setSourceStyle] = usePersistentState<SourceStyle>("mb-chat-sourceStyle", "color");
   const [msgStyle, setMsgStyle] = usePersistentState<MsgStyle>("mb-chat-msgStyle", "classic");
-  const [nameColor, setNameColor] = usePersistentState<NameColor>("mb-chat-nameColor", "native");
+  const [nameColor, setNameColor] = usePersistentState<NameColor>("mb-chat-nameColor", "pastel");
   const [animate, setAnimate] = usePersistentState("mb-chat-animate", true);
   const [chatSize, setChatSize] = usePersistentState("mb-chat-size", 13);
 
@@ -746,6 +779,12 @@ export function ChatPanel({ popout = false }: { popout?: boolean } = {}) {
     initialIdsRef.current = new Set(messages.map((m) => m.id));
   }
   const animateOn = animate && !reduceMotion;
+  const [chatSettled, setChatSettled] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setChatSettled(true), 4000);
+    return () => clearTimeout(t);
+  }, []);
+  const loadingChat = messages.length === 0 && !chatSettled;
   const scrollRef = useRef<HTMLDivElement>(null);
   const handleCashtag = useCallback((t: string) => setCashtag(t), []);
 
@@ -876,6 +915,42 @@ export function ChatPanel({ popout = false }: { popout?: boolean } = {}) {
         </HStack>
       </Flex>
 
+      {searchBar && (
+        <Flex
+          align="center"
+          px="12px"
+          flexShrink={0}
+          borderBottom="1px solid"
+          borderColor={c.border.subtle}
+        >
+          <Box color={c.text.subtle}>
+            <LuSearch size={14} />
+          </Box>
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search chat or users"
+            variant="unstyled"
+            h="42px"
+            px="9px"
+            fontSize="sm"
+            color={c.text.primary}
+            _placeholder={{ color: c.text.placeholder }}
+          />
+          {query && (
+            <Box
+              as="button"
+              onClick={() => setQuery("")}
+              color={c.text.subtle}
+              _hover={{ color: c.text.primary }}
+              aria-label="Clear search"
+            >
+              <LuX size={14} />
+            </Box>
+          )}
+        </Flex>
+      )}
+
       {panel === "filters" && (
         <VStack
           align="stretch"
@@ -889,6 +964,7 @@ export function ChatPanel({ popout = false }: { popout?: boolean } = {}) {
           zIndex={20}
           maxH="calc(100% - 52px)"
           overflowY="auto"
+          sx={scrollbarSx(c)}
           bg={c.surface}
           boxShadow={c.shadow.soft}
           borderBottom="1px solid"
@@ -984,15 +1060,9 @@ export function ChatPanel({ popout = false }: { popout?: boolean } = {}) {
         overflowY="auto"
         py="8px"
         position="relative"
-        sx={{
-          scrollbarWidth: "thin",
-          scrollbarColor: `${c.overlay.strong} transparent`,
-          "&::-webkit-scrollbar": { width: "7px" },
-          "&::-webkit-scrollbar-thumb": { background: c.overlay.strong, borderRadius: "4px" },
-          "&::-webkit-scrollbar-thumb:hover": { background: c.border.strong },
-          "&::-webkit-scrollbar-track": { background: "transparent" },
-        }}
+        sx={scrollbarSx(c)}
       >
+        {loadingChat && <ChatSkeleton />}
         {filtered.map((m) => (
           <ChatRow
             key={m.id}
@@ -1041,6 +1111,7 @@ export function ChatPanel({ popout = false }: { popout?: boolean } = {}) {
           flexShrink={0}
           maxH="55%"
           overflowY="auto"
+          sx={scrollbarSx(c)}
           bg={c.surface}
           borderTop="1px solid"
           borderColor={c.border.subtle}
@@ -1068,6 +1139,7 @@ export function ChatPanel({ popout = false }: { popout?: boolean } = {}) {
               options={[
                 { label: "Native", val: "native" },
                 { label: "Platform", val: "platform" },
+                { label: "Pastel", val: "pastel" },
               ]}
               onChange={(v) => setNameColor(v as NameColor)}
             />

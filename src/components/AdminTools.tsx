@@ -17,6 +17,7 @@ import { ChatMessage } from "@/lib/chat/types";
 import { useAuth } from "@/lib/auth";
 import { usePersistentState } from "@/lib/usePersistentState";
 import { useShow } from "@/lib/showConfig";
+import { scrollbarSx } from "@/theme/scrollbar";
 import { useColors } from "@/theme/useColors";
 
 type Tab = "questions" | "saved" | "trending" | "chatters" | "links";
@@ -122,12 +123,6 @@ function Stat({ label, value }: { label: string; value: number | string }) {
   );
 }
 
-const scrollSx = {
-  scrollbarWidth: "thin" as const,
-  "&::-webkit-scrollbar": { width: "7px" },
-  "&::-webkit-scrollbar-thumb": { background: "rgba(255,255,255,0.1)", borderRadius: "4px" },
-  "&::-webkit-scrollbar-track": { background: "transparent" },
-};
 
 function TopTab({
   active,
@@ -268,7 +263,7 @@ function BroadcastPanel() {
   }
 
   return (
-    <Flex direction="column" flex="1" minH={0} overflowY="auto" sx={scrollSx}>
+    <Flex direction="column" flex="1" minH={0} overflowY="auto" sx={scrollbarSx(c)}>
       <BroadcastField label="EPISODE TITLE" value={title} onChange={(v) => setDraft({ title: v })} />
       <BroadcastField label="SUBTITLE LINE" value={subtitle} onChange={(v) => setDraft({ subtitle: v })} />
 
@@ -552,7 +547,7 @@ export function AdminTools({ messages }: { messages: ChatMessage[] }) {
         <SubTab active={tab === "links"} onClick={() => setTab("links")} icon={<LuLink size={15} />} label="LINKS" />
       </HStack>
 
-      <Box flex="1" minH={0} overflowY="auto" sx={scrollSx}>
+      <Box flex="1" minH={0} overflowY="auto" sx={scrollbarSx(c)}>
         {tab === "questions" && (
           <VStack align="stretch" spacing="6px">
             {questions.length === 0 ? (
