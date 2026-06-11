@@ -37,7 +37,7 @@ export async function getCrypto(): Promise<MarketQuote[]> {
         change: c.price_change_percentage_24h || 0,
         spark: (c.sparkline_in_7d?.price || []).slice(-24),
       });
-      if (out.length >= 4) break;
+      if (out.length >= 12) break;
     }
     return out;
   } catch {

@@ -23,6 +23,7 @@ import { LuUser, LuSettings2, LuMoon, LuLogOut } from "react-icons/lu";
 import { FaTwitch } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
 import { useAuth, type LinkedAccount } from "@/lib/auth";
+import { useSettings } from "@/lib/settings";
 import { useColors } from "@/theme/useColors";
 
 function CosmeticSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
@@ -164,32 +165,72 @@ function SettingRow({ label, desc, control }: { label: string; desc: string; con
   );
 }
 
+function MarketsTabToggle({
+  value,
+  onChange,
+}: {
+  value: "polymarket" | "markets";
+  onChange: (v: "polymarket" | "markets") => void;
+}) {
+  const c = useColors();
+  const opts: { id: "polymarket" | "markets"; label: string }[] = [
+    { id: "polymarket", label: "Polymarket" },
+    { id: "markets", label: "Markets" },
+  ];
+  return (
+    <HStack spacing="2px" bg={c.overlay.soft} borderRadius={c.radius.control} p="3px" flexShrink={0}>
+      {opts.map((o) => {
+        const on = value === o.id;
+        return (
+          <Box
+            as="button"
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            px="10px"
+            py="5px"
+            borderRadius="7px"
+            bg={on ? c.surfaceRaised : "transparent"}
+            color={on ? c.text.primary : c.text.muted}
+            fontSize="xs"
+            fontWeight={500}
+            _hover={{ color: c.text.primary }}
+            transition="all 0.15s"
+          >
+            {o.label}
+          </Box>
+        );
+      })}
+    </HStack>
+  );
+}
+
 function SettingsBody() {
-  const [showBadges, setShowBadges] = useState(true);
-  const [compact, setCompact] = useState(false);
-  const [profanity, setProfanity] = useState(true);
-  const [sounds, setSounds] = useState(false);
+  const { reduceMotion, setReduceMotion, goLiveNotify, setGoLiveNotify, marketsTab, setMarketsTab } =
+    useSettings();
+
+  function toggleGoLive(next: boolean) {
+    if (next && typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+    setGoLiveNotify(next);
+  }
+
   return (
     <VStack align="stretch" spacing="0">
       <SettingRow
-        label="Show platform badges"
-        desc="Sub, Mod and VIP tags in chat"
-        control={<CosmeticSwitch on={showBadges} onToggle={() => setShowBadges((v) => !v)} />}
+        label="Reduce motion"
+        desc="Turn off the number roll and transitions"
+        control={<CosmeticSwitch on={reduceMotion} onToggle={() => setReduceMotion(!reduceMotion)} />}
       />
       <SettingRow
-        label="Compact chat"
-        desc="Tighter spacing between messages"
-        control={<CosmeticSwitch on={compact} onToggle={() => setCompact((v) => !v)} />}
+        label="Go-live notification"
+        desc="Get a browser alert when the show starts"
+        control={<CosmeticSwitch on={goLiveNotify} onToggle={() => toggleGoLive(!goLiveNotify)} />}
       />
       <SettingRow
-        label="Profanity filter"
-        desc="Hide flagged words"
-        control={<CosmeticSwitch on={profanity} onToggle={() => setProfanity((v) => !v)} />}
-      />
-      <SettingRow
-        label="Chat sounds"
-        desc="Play a sound when mentioned"
-        control={<CosmeticSwitch on={sounds} onToggle={() => setSounds((v) => !v)} />}
+        label="Default markets tab"
+        desc="Which tab the markets panel opens on"
+        control={<MarketsTabToggle value={marketsTab} onChange={setMarketsTab} />}
       />
     </VStack>
   );
@@ -285,7 +326,6 @@ export function ProfileMenu() {
 
             <Divider borderColor={c.border.subtle} my="4px" />
 
-            <MenuRow icon={<LuUser size={16} />} label="Profile" />
             <MenuRow icon={<LuSettings2 size={16} />} label="Settings" onClick={openSettings} />
             <MenuRow
               icon={<LuMoon size={16} />}

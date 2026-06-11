@@ -264,37 +264,43 @@ function TwitchPlayer({ channel, host }: { channel: string; host: string }) {
   );
 }
 
+function VideoFrame() {
+  const c = useColors();
+  const [host, setHost] = useState("");
+
+  useEffect(() => setHost(window.location.hostname), []);
+
+  return (
+    <Box
+      bg="#000"
+      borderRadius={c.radius.card}
+      overflow="hidden"
+      boxShadow={c.shadow.soft}
+      display="flex"
+      justifyContent="center"
+    >
+      <Box position="relative" w="100%" maxW="1280px">
+        <AspectRatio ratio={16 / 9}>
+          {host && VIDEO_TWITCH ? (
+            <TwitchPlayer channel={VIDEO_TWITCH} host={host} />
+          ) : (
+            <Box bg="#000" />
+          )}
+        </AspectRatio>
+      </Box>
+    </Box>
+  );
+}
+
 export function VideoStage({ hideViewerCount = false }: { hideViewerCount?: boolean }) {
   const c = useColors();
   const stats = useStats();
   const total = stats?.viewers.total ?? null;
   const live = Boolean(stats?.viewers.twitchStartedAt);
-  const [host, setHost] = useState("");
-
-  useEffect(() => {
-    setHost(window.location.hostname);
-  }, []);
 
   return (
     <Box>
-      <Box
-        bg="#000"
-        borderRadius={c.radius.card}
-        overflow="hidden"
-        boxShadow={c.shadow.soft}
-        display="flex"
-        justifyContent="center"
-      >
-        <Box position="relative" w="100%" maxW="1280px">
-          <AspectRatio ratio={16 / 9}>
-            {host && VIDEO_TWITCH ? (
-              <TwitchPlayer channel={VIDEO_TWITCH} host={host} />
-            ) : (
-              <Box bg="#000" />
-            )}
-          </AspectRatio>
-        </Box>
-      </Box>
+      <VideoFrame />
 
       <Flex mt="18px" px="8px" align="flex-start" justify="space-between" gap="20px" flexWrap="wrap">
         <Box>

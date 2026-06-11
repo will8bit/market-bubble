@@ -1,6 +1,7 @@
 "use client";
 
 import { Box, Flex } from "@chakra-ui/react";
+import { useSettings } from "@/lib/settings";
 
 function RollingDigit({ digit }: { digit: number }) {
   return (
@@ -34,7 +35,26 @@ export function RollingNumber({
   fontFamily?: string;
   color?: string;
 }) {
+  const { reduceMotion } = useSettings();
   const text = typeof value === "number" ? Math.round(value).toLocaleString() : value;
+
+  if (reduceMotion) {
+    return (
+      <Box
+        as="span"
+        display="inline-block"
+        lineHeight="1"
+        fontSize={fontSize}
+        fontWeight={fontWeight}
+        fontFamily={fontFamily}
+        color={color}
+        sx={{ fontVariantNumeric: "tabular-nums" }}
+      >
+        {text}
+      </Box>
+    );
+  }
+
   const chars = text.split("");
   return (
     <Flex

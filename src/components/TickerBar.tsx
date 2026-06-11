@@ -3,7 +3,14 @@
 import { HStack, Text, Box } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { TICKERS, Ticker } from "@/lib/tickers";
+import { useStats } from "@/lib/chat/StatsProvider";
 import { useColors } from "@/theme/useColors";
+
+function fmtTickerPrice(p: number): string {
+  if (p >= 1000) return `$${Math.round(p).toLocaleString()}`;
+  if (p >= 1) return `$${p.toFixed(2)}`;
+  return `$${p.toFixed(4)}`;
+}
 
 const scroll = keyframes`
   from { transform: translateX(0); }
@@ -33,7 +40,12 @@ function TickerPill({ symbol, price, change }: Ticker) {
 }
 
 export function TickerBar() {
-  const base = [...TICKERS, ...TICKERS, ...TICKERS, ...TICKERS];
+  const stats = useStats();
+  const crypto = stats?.markets.crypto ?? [];
+  const source: Ticker[] = crypto.length
+    ? crypto.map((m) => ({ symbol: m.symbol, price: fmtTickerPrice(m.price), change: m.change }))
+    : TICKERS;
+  const base = [...source, ...source, ...source, ...source];
   const items = [...base, ...base];
   return (
     <Box

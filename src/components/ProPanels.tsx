@@ -6,6 +6,7 @@ import { FaTwitch, FaXTwitter } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
 import { LuCalendar, LuX, LuExternalLink, LuEye } from "react-icons/lu";
 import { useStats, type MarketQuote, type MediaClip, type MediaVideo } from "@/lib/chat/StatsProvider";
+import { useSettings } from "@/lib/settings";
 import { RollingNumber } from "./RollingNumber";
 import { useAvatar } from "@/lib/avatars";
 import { useColors } from "@/theme/useColors";
@@ -184,7 +185,7 @@ function MarketsList() {
   const stats = useStats();
   return (
     <Flex direction="column" gap="16px">
-      <MarketGroup title="CRYPTO" rows={stats?.markets.crypto ?? []} />
+      <MarketGroup title="CRYPTO" rows={(stats?.markets.crypto ?? []).slice(0, 4)} />
       <MarketGroup title="INDICES" rows={EXAMPLE_STOCKS} />
       <MarketGroup title="COMMODITIES" rows={EXAMPLE_COMMODITIES} />
     </Flex>
@@ -316,7 +317,9 @@ function TabButton({
 
 export function MarketsPanel() {
   const c = useColors();
-  const [tab, setTab] = useState<"polymarket" | "markets">("polymarket");
+  const { marketsTab } = useSettings();
+  const [tab, setTab] = useState<"polymarket" | "markets">(marketsTab);
+  useEffect(() => setTab(marketsTab), [marketsTab]);
   return (
     <Box
       bg={c.surface}

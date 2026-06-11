@@ -51,7 +51,8 @@ const BADGE_META: Record<Badge["type"], { icon: ReactNode; color: string }> = {
   og: { icon: <LuAward size={10} />, color: "#c79a3f" },
 };
 
-function chatTitle(platforms: Set<Platform>, streamers: Set<StreamerId>) {
+function chatTitle(global: boolean, platforms: Set<Platform>, streamers: Set<StreamerId>) {
+  if (global) return "GLOBAL CHAT";
   const allP = platforms.size === PLATFORMS.length;
   const allS = streamers.size === STREAMERS.length;
   if (allP && allS) return "GLOBAL CHAT";
@@ -296,8 +297,6 @@ function SourceToggle({
       py="8px"
       borderRadius={c.radius.pill}
       bg={active ? `${color}22` : c.overlay.soft}
-      border="1px solid"
-      borderColor={active ? color : "transparent"}
       opacity={active ? 1 : 0.5}
       _hover={{ opacity: 1 }}
       transition="all 0.15s"
@@ -335,8 +334,6 @@ function StreamerToggle({
       py="5px"
       borderRadius={c.radius.pill}
       bg={active ? `${accent}22` : c.overlay.soft}
-      border="1px solid"
-      borderColor={active ? accent : "transparent"}
       opacity={active ? 1 : 0.5}
       _hover={{ opacity: 1 }}
       transition="all 0.15s"
@@ -600,6 +597,7 @@ export function ChatPanel() {
   const [streamers, setStreamers] = useState<Set<StreamerId>>(
     new Set(STREAMERS.map((s) => s.id))
   );
+  const [global, setGlobal] = useState(true);
   const [query, setQuery] = useState("");
   const [cashtag, setCashtag] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
@@ -624,6 +622,11 @@ export function ChatPanel() {
   }
 
   function togglePlatform(p: Platform) {
+    if (global) {
+      setGlobal(false);
+      setPlatforms(new Set([p]));
+      return;
+    }
     setPlatforms((prev) => {
       const next = new Set(prev);
       if (next.has(p)) next.delete(p);
@@ -633,6 +636,11 @@ export function ChatPanel() {
   }
 
   function toggleStreamer(s: StreamerId) {
+    if (global) {
+      setGlobal(false);
+      setStreamers(new Set([s]));
+      return;
+    }
     setStreamers((prev) => {
       const next = new Set(prev);
       if (next.has(s)) next.delete(s);
@@ -641,18 +649,26 @@ export function ChatPanel() {
     });
   }
 
+  function selectGlobal() {
+    setGlobal(true);
+    setPlatforms(new Set(PLATFORMS));
+    setStreamers(new Set(STREAMERS.map((s) => s.id)));
+  }
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return messages.filter((m) => {
-      if (!platforms.has(m.platform)) return false;
-      if (!streamers.has(m.streamer)) return false;
+      if (!global) {
+        if (!platforms.has(m.platform)) return false;
+        if (!streamers.has(m.streamer)) return false;
+      }
       if (hideCommands && m.text.startsWith("!")) return false;
       if (cashtag && !m.cashtags.includes(cashtag)) return false;
       if (q && !m.text.toLowerCase().includes(q) && !m.author.name.toLowerCase().includes(q))
         return false;
       return true;
     });
-  }, [messages, platforms, streamers, hideCommands, cashtag, query]);
+  }, [messages, global, platforms, streamers, hideCommands, cashtag, query]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -694,7 +710,7 @@ export function ChatPanel() {
           minW={0}
           mr="8px"
         >
-          {chatTitle(platforms, streamers)}
+          {chatTitle(global, platforms, streamers)}
         </Text>
         <HStack spacing="4px" flexShrink={0}>
           <IconBtn label="Filters" active={panel === "filters"} onClick={() => togglePanel("filters")}>
@@ -767,7 +783,7 @@ export function ChatPanel() {
                 <SourceToggle
                   key={s.id}
                   meta={s}
-                  active={platforms.has(s.id)}
+                  active={global || platforms.has(s.id)}
                   onClick={() => togglePlatform(s.id)}
                 />
               ))}
@@ -782,7 +798,7 @@ export function ChatPanel() {
                   key={s.id}
                   id={s.id}
                   name={s.displayName}
-                  active={streamers.has(s.id)}
+                  active={global || streamers.has(s.id)}
                   onClick={() => toggleStreamer(s.id)}
                 />
               ))}
@@ -896,8 +912,10 @@ export function ChatPanel() {
       <ChatComposer
         platforms={platforms}
         streamers={streamers}
-        setPlatforms={setPlatforms}
-        setStreamers={setStreamers}
+        global={global}
+        onTogglePlatform={togglePlatform}
+        onToggleStreamer={toggleStreamer}
+        onSelectGlobal={selectGlobal}
         settingsOpen={panel === "settings"}
         onSettings={() => togglePanel("settings")}
         echoSelf={echoSelf}

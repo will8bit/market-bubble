@@ -5,7 +5,9 @@ import { ChakraProvider, ColorModeScript } from "@chakra-ui/react";
 import theme from "@/theme";
 import { ProModeProvider } from "@/lib/proMode";
 import { StatsProvider } from "@/lib/chat/StatsProvider";
+import { SettingsProvider } from "@/lib/settings";
 import { AuthProvider } from "@/lib/auth";
+import { GoLiveNotifier } from "@/components/GoLiveNotifier";
 import { preloadAvatars } from "@/lib/avatars";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -22,9 +24,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       {mounted ? (
         <ChakraProvider theme={theme}>
           <AuthProvider>
-            <ProModeProvider>
-              <StatsProvider>{children}</StatsProvider>
-            </ProModeProvider>
+            <SettingsProvider>
+              <ProModeProvider>
+                <StatsProvider>
+                <GoLiveNotifier />
+                {children}
+              </StatsProvider>
+              </ProModeProvider>
+            </SettingsProvider>
           </AuthProvider>
         </ChakraProvider>
       ) : null}
