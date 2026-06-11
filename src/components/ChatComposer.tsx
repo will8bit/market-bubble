@@ -20,7 +20,7 @@ import {
 import { FaTwitch, FaXTwitter } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
 import { LuChevronUp, LuCheck, LuSmile, LuSettings } from "react-icons/lu";
-import { Platform, StreamerId, STREAMERS } from "@/lib/chat/types";
+import { Platform, StreamerId, STREAMERS, streamerPlatforms } from "@/lib/chat/types";
 import { useAuth, type Provider } from "@/lib/auth";
 import { useAvatar, getAvatar } from "@/lib/avatars";
 import { MarketBubbleMark } from "./Logo";
@@ -56,7 +56,7 @@ function StreamerOption({
 }) {
   const c = useColors();
   const src = useAvatar(`/${streamer.id}.jpg`);
-  const accent = streamer.id === "banks" ? c.streamer.banks : c.streamer.ansem;
+  const isMB = streamer.id === "marketbubble";
   return (
     <HStack
       as="button"
@@ -76,10 +76,17 @@ function StreamerOption({
           borderRadius="full"
           overflow="hidden"
           flexShrink={0}
-          border="1.5px solid"
-          borderColor={accent}
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          bg={isMB ? "#ffffff" : undefined}
+          color={isMB ? "#000000" : c.text.primary}
         >
-          <Image src={src} alt={streamer.displayName} w="100%" h="100%" objectFit="cover" />
+          {isMB ? (
+            <MarketBubbleMark size={12} />
+          ) : (
+            <Image src={src} alt={streamer.displayName} w="100%" h="100%" objectFit="cover" />
+          )}
         </Box>
         <Text fontSize="sm" color={c.text.primary} noOfLines={1}>
           {streamer.displayName}
@@ -162,7 +169,16 @@ export function ChatComposer({
     }
     setSending(true);
     setError(null);
-    const targets = linkedP.flatMap((p) => selStreamers.map((s) => ({ platform: p, streamer: s.id })));
+    const targets = linkedP.flatMap((p) =>
+      selStreamers
+        .filter((s) => streamerPlatforms(s.id).includes(p))
+        .map((s) => ({ platform: p, streamer: s.id }))
+    );
+    if (targets.length === 0) {
+      setSending(false);
+      setError("Selected source can't be posted to (X is view-only).");
+      return;
+    }
     const echoId = echoSelf({
       authorName: twitch?.displayName || kick?.displayName || "you",
       handles: { twitch: twitch?.username, kick: kick?.username },
@@ -315,24 +331,41 @@ export function ChatComposer({
               <HStack spacing="6px" minW={0}>
                 {selStreamers.length > 0 ? (
                   <HStack spacing="4px" flexShrink={0}>
-                    {selStreamers.map((s) => (
-                      <Box
-                        key={s.id}
-                        w="18px"
-                        h="18px"
-                        borderRadius="full"
-                        overflow="hidden"
-                        flexShrink={0}
-                      >
-                        <Image
-                          src={getAvatar(`/${s.id}.jpg`)}
-                          alt={s.displayName}
-                          w="100%"
-                          h="100%"
-                          objectFit="cover"
-                        />
-                      </Box>
-                    ))}
+                    {selStreamers.map((s) =>
+                      s.id === "marketbubble" ? (
+                        <Box
+                          key={s.id}
+                          w="18px"
+                          h="18px"
+                          borderRadius="full"
+                          bg="#ffffff"
+                          color="#000000"
+                          display="flex"
+                          alignItems="center"
+                          justifyContent="center"
+                          flexShrink={0}
+                        >
+                          <MarketBubbleMark size={12} />
+                        </Box>
+                      ) : (
+                        <Box
+                          key={s.id}
+                          w="18px"
+                          h="18px"
+                          borderRadius="full"
+                          overflow="hidden"
+                          flexShrink={0}
+                        >
+                          <Image
+                            src={getAvatar(`/${s.id}.jpg`)}
+                            alt={s.displayName}
+                            w="100%"
+                            h="100%"
+                            objectFit="cover"
+                          />
+                        </Box>
+                      )
+                    )}
                   </HStack>
                 ) : (
                   <Text fontSize="xs" color={c.text.secondary} noOfLines={1}>

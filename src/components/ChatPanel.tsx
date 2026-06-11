@@ -20,7 +20,7 @@ import {
 } from "react-icons/lu";
 import { FaTwitch, FaXTwitter } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
-import { ChatMessage, Platform, StreamerId, Badge, STREAMERS, PLATFORM_LABEL } from "@/lib/chat/types";
+import { ChatMessage, Platform, StreamerId, Badge, STREAMERS, PLATFORM_LABEL, streamerPlatforms } from "@/lib/chat/types";
 import { useChatFeed } from "@/lib/chat/useChatFeed";
 import { getAvatar } from "@/lib/avatars";
 import { useSettings } from "@/lib/settings";
@@ -65,6 +65,7 @@ const SOURCE_META: { id: Platform; label: string; icon: ReactNode }[] = [
 const STREAMER_IMG: Record<StreamerId, string> = {
   banks: "/banks.jpg",
   ansem: "/ansem.jpg",
+  marketbubble: "",
 };
 
 const BADGE_META: Record<Badge["type"], { icon: ReactNode; color: string }> = {
@@ -105,11 +106,49 @@ function platformIcon(p: Platform) {
 }
 
 function streamerColor(c: Colors, s: StreamerId) {
-  return s === "banks" ? c.streamer.banks : c.streamer.ansem;
+  if (s === "banks") return c.streamer.banks;
+  if (s === "ansem") return c.streamer.ansem;
+  return c.text.primary;
+}
+
+function StreamerAvatar({ id, size }: { id: StreamerId; size: number }) {
+  if (id === "marketbubble") {
+    return (
+      <Box
+        w={`${size}px`}
+        h={`${size}px`}
+        borderRadius="full"
+        bg="#ffffff"
+        color="#000000"
+        display="inline-flex"
+        alignItems="center"
+        justifyContent="center"
+        flexShrink={0}
+      >
+        <MarketBubbleMark size={Math.round(size * 0.64)} />
+      </Box>
+    );
+  }
+  return (
+    <Image
+      src={getAvatar(STREAMER_IMG[id])}
+      alt=""
+      w={`${size}px`}
+      h={`${size}px`}
+      borderRadius="full"
+      objectFit="cover"
+    />
+  );
 }
 
 function streamerName(s: StreamerId) {
   return STREAMERS.find((x) => x.id === s)?.displayName ?? s;
+}
+
+function platformsFor(sel: Set<StreamerId>): Set<Platform> {
+  const out = new Set<Platform>();
+  for (const id of sel) for (const p of streamerPlatforms(id)) out.add(p);
+  return out;
 }
 
 function GroupLabel({ children }: { children: ReactNode }) {
@@ -317,24 +356,27 @@ function SourceToggle({
   meta,
   active,
   onClick,
+  disabled,
 }: {
   meta: { id: Platform; label: string; icon: ReactNode };
   active: boolean;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   const c = useColors();
   const color = platformColor(c, meta.id);
   return (
     <HStack
       as="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       spacing="7px"
       px="12px"
       py="8px"
       borderRadius={c.radius.pill}
       bg={active ? `${color}22` : c.overlay.soft}
-      opacity={active ? 1 : 0.5}
-      _hover={{ opacity: 1 }}
+      opacity={disabled ? 0.3 : active ? 1 : 0.5}
+      cursor={disabled ? "not-allowed" : "pointer"}
+      _hover={disabled ? {} : { opacity: 1 }}
       transition="all 0.15s"
     >
       <Box color={color} display="flex">
@@ -374,17 +416,7 @@ function StreamerToggle({
       _hover={{ opacity: 1 }}
       transition="all 0.15s"
     >
-      <Box
-        w="22px"
-        h="22px"
-        borderRadius="full"
-        overflow="hidden"
-        flexShrink={0}
-        border="1px solid"
-        borderColor={accent}
-      >
-        <Image src={getAvatar(STREAMER_IMG[id])} alt={name} w="100%" h="100%" objectFit="cover" />
-      </Box>
+      <StreamerAvatar id={id} size={22} />
       <Text fontSize="sm" fontWeight={600} color={c.text.primary}>
         {name}
       </Text>
@@ -582,15 +614,8 @@ const ChatRow = memo(function ChatRow({
               <Text as="span">{msg.multi ? "Global" : PLATFORM_LABEL[msg.platform]}</Text>
             </Box>
             {showAvatars && !msg.multi && (
-              <Box as="span" display="inline-flex" verticalAlign="middle" mr="6px">
-                <Image
-                  src={STREAMER_IMG[msg.streamer]}
-                  alt=""
-                  w="16px"
-                  h="16px"
-                  borderRadius="full"
-                  objectFit="cover"
-                />
+              <Box as="span" display="inline-flex" verticalAlign="middle" mr="6px" color={c.text.primary}>
+                <StreamerAvatar id={msg.streamer} size={16} />
               </Box>
             )}
             {showBadges &&
@@ -645,15 +670,8 @@ const ChatRow = memo(function ChatRow({
             </Box>
           )}
           {showAvatars && !msg.multi && (
-            <Box as="span" display="inline-flex" verticalAlign="middle" mr="6px">
-              <Image
-                src={STREAMER_IMG[msg.streamer]}
-                alt=""
-                w="16px"
-                h="16px"
-                borderRadius="full"
-                objectFit="cover"
-              />
+            <Box as="span" display="inline-flex" verticalAlign="middle" mr="6px" color={c.text.primary}>
+              <StreamerAvatar id={msg.streamer} size={16} />
             </Box>
           )}
           {showBadges &&
@@ -792,12 +810,16 @@ export function ChatPanel({
     setPanel((prev) => (prev === p ? null : p));
   }
 
+  const availablePlatforms = global ? new Set(PLATFORMS) : platformsFor(streamers);
+
   function togglePlatform(p: Platform) {
     if (global) {
       setGlobal(false);
+      setStreamers(new Set(STREAMERS.map((s) => s.id)));
       setPlatforms(new Set([p]));
       return;
     }
+    if (!availablePlatforms.has(p)) return;
     const next = new Set(platforms);
     if (next.has(p)) next.delete(p);
     else next.add(p);
@@ -811,15 +833,19 @@ export function ChatPanel({
     if (global) {
       setGlobal(false);
       setStreamers(new Set([s]));
+      setPlatforms(platformsFor(new Set([s])));
       return;
     }
     const next = new Set(streamers);
     if (next.has(s)) next.delete(s);
     else next.add(s);
-    if (next.size === STREAMERS.length && platforms.size === PLATFORMS.length) {
+    const avail = platformsFor(next);
+    const nextPlatforms = new Set([...platforms].filter((p) => avail.has(p)));
+    if (next.size === STREAMERS.length && nextPlatforms.size === PLATFORMS.length) {
       setGlobal(true);
     }
     setStreamers(next);
+    setPlatforms(nextPlatforms);
   }
 
   function selectGlobal() {
@@ -1008,6 +1034,7 @@ export function ChatPanel({
                   key={s.id}
                   meta={s}
                   active={global || platforms.has(s.id)}
+                  disabled={!availablePlatforms.has(s.id)}
                   onClick={() => togglePlatform(s.id)}
                 />
               ))}

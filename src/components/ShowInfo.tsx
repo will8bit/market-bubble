@@ -47,8 +47,6 @@ function HostCard({ host }: { host: Host }) {
         borderRadius="full"
         overflow="hidden"
         flexShrink={0}
-        border="1.5px solid"
-        borderColor={accent}
       >
         <Image src={src} alt={host.name} w="100%" h="100%" objectFit="cover" />
       </Box>

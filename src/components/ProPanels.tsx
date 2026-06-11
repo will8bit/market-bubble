@@ -458,8 +458,6 @@ function StreamerLine({
           borderRadius="full"
           overflow="hidden"
           flexShrink={0}
-          border="1.5px solid"
-          borderColor={color}
         >
           <Image src={src} alt={name} w="100%" h="100%" objectFit="cover" />
         </Box>
@@ -1152,8 +1150,6 @@ function HostRow({ host }: { host: (typeof ABOUT_HOSTS)[number] }) {
         borderRadius="full"
         overflow="hidden"
         flexShrink={0}
-        border="1.5px solid"
-        borderColor={accent}
       >
         <Image src={src} alt={host.name} w="100%" h="100%" objectFit="cover" />
       </Box>
