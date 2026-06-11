@@ -34,6 +34,23 @@ A separate, secured dashboard for the hosts — access is computed **server-side
 - **Broadcast** — edit the on-site show title and subtitle and **Save** them globally for every viewer in real time, then optionally **push the title to the live Twitch and Kick channels** with one button each (works for whoever owns the channel and is signed in).
 - A focused 50/50 stage (stream over audience) with no page scroll, and a Home button back to the public site.
 
+> **Admin access:** the control room at `/admin` is restricted to whitelisted accounts. You must be **signed in with a whitelisted Twitch account** to use it — if you're not already logged in, sign in via the profile menu first, otherwise the page just shows "Not authorized".
+
+---
+
+## Live links
+
+- **Site:** https://market-bubble-six.vercel.app/
+- **Pop-out chat:** https://market-bubble-six.vercel.app/popout/marketbubble/chat?popout=
+- **Pop-out audience + feed health:** https://market-bubble-six.vercel.app/popout/marketbubble/audience?popout=
+
+The two pop-out URLs are standalone, self-contained views meant to be used **live during a stream** — drop them straight into an OBS / Streamlabs **Browser Source**, or just open them on a second monitor:
+
+- **Pop-out chat** — the full unified Twitch + Kick + X chat in one window.
+- **Pop-out audience** — the live viewer stats and feed-health monitor.
+
+They stay in sync with the main site in real time, and while one is open the main dashboard shows a "popped out" placeholder so nothing is duplicated. The chat and audience panels also have a pop-out button in their headers that open these same URLs.
+
 ---
 
 ## Architecture

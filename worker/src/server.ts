@@ -4,7 +4,7 @@ import { ChatMessage, StreamerId, Platform } from "./types";
 import { handleAuthRequest } from "./auth";
 
 const FLUSH_MS = 250;
-const RECENT_LIMIT = 100;
+const RECENT_LIMIT = 250;
 const MARKER_WINDOW = 12000;
 
 interface Marker {
