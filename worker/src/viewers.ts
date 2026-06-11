@@ -61,48 +61,83 @@ export async function getTwitchViewers(logins: string[]): Promise<Record<string,
 const kickCache = new Map<string, { viewers: number; at: number }>();
 const KICK_STALE_MS = 180000;
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+let kickToken = "";
+let kickTokenExp = 0;
 
-type KickFetch = { ok: false } | { ok: true; live: boolean; viewers: number };
+async function kickAppToken(): Promise<string> {
+  const id = process.env.KICK_CLIENT_ID || "";
+  const secret = process.env.KICK_CLIENT_SECRET || "";
+  if (!id || !secret) return "";
+  if (kickToken && Date.now() < kickTokenExp) return kickToken;
+  try {
+    const res = await fetch("https://id.kick.com/oauth/token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ grant_type: "client_credentials", client_id: id, client_secret: secret }),
+    });
+    if (!res.ok) return "";
+    const d = (await res.json()) as { access_token?: string; expires_in?: number };
+    kickToken = d.access_token || "";
+    kickTokenExp = Date.now() + ((d.expires_in || 3600) - 120) * 1000;
+    return kickToken;
+  } catch {
+    return "";
+  }
+}
 
-async function fetchKickOnce(slug: string): Promise<KickFetch> {
-  const res = await fetch(`https://kick.com/api/v2/channels/${slug}`, {
-    headers: { "User-Agent": UA, accept: "application/json" },
-  });
-  if (!res.ok) return { ok: false };
-  const d = (await res.json()) as { livestream?: { is_live?: boolean; viewer_count?: number } | null };
-  const live = Boolean(d.livestream && d.livestream.is_live);
-  return { ok: true, live, viewers: d.livestream?.viewer_count || 0 };
+function fromCache(out: Record<string, number>, slugs: string[]) {
+  for (const s of slugs) {
+    const key = s.toLowerCase();
+    const c = kickCache.get(key);
+    if (c && Date.now() - c.at < KICK_STALE_MS) out[key] = c.viewers;
+  }
 }
 
 export async function getKickViewers(slugs: string[]): Promise<Record<string, number>> {
   const out: Record<string, number> = {};
-  for (const slug of slugs) {
-    const key = slug.toLowerCase();
-    let r: KickFetch;
-    try {
-      r = await fetchKickOnce(slug);
-    } catch {
-      r = { ok: false };
+  if (slugs.length === 0) return out;
+
+  const token = await kickAppToken();
+  if (!token) {
+    fromCache(out, slugs);
+    return out;
+  }
+
+  const qs = slugs.map((s) => `slug=${encodeURIComponent(s.toLowerCase())}`).join("&");
+  try {
+    const res = await fetch(`https://api.kick.com/public/v1/channels?${qs}`, {
+      headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+    });
+    if (!res.ok) {
+      fromCache(out, slugs);
+      return out;
     }
-    if (!r.ok) {
-      await sleep(400);
-      try {
-        r = await fetchKickOnce(slug);
-      } catch {
-        r = { ok: false };
+    const d = (await res.json()) as {
+      data?: Array<{ slug?: string; stream?: { is_live?: boolean; viewer_count?: number } | null }>;
+    };
+    const seen = new Set<string>();
+    for (const ch of d.data || []) {
+      const key = (ch.slug || "").toLowerCase();
+      if (!key) continue;
+      seen.add(key);
+      if (ch.stream && ch.stream.is_live) {
+        const v = ch.stream.viewer_count || 0;
+        out[key] = v;
+        kickCache.set(key, { viewers: v, at: Date.now() });
+      } else {
+        kickCache.delete(key);
       }
     }
-
-    if (r.ok && r.live) {
-      out[key] = r.viewers;
-      kickCache.set(key, { viewers: r.viewers, at: Date.now() });
-    } else if (r.ok && !r.live) {
-      kickCache.delete(key);
-    } else {
-      const cached = kickCache.get(key);
-      if (cached && Date.now() - cached.at < KICK_STALE_MS) out[key] = cached.viewers;
+    for (const s of slugs) {
+      const key = s.toLowerCase();
+      if (!seen.has(key)) {
+        const c = kickCache.get(key);
+        if (c && Date.now() - c.at < KICK_STALE_MS) out[key] = c.viewers;
+      }
     }
+    return out;
+  } catch {
+    fromCache(out, slugs);
+    return out;
   }
-  return out;
 }
