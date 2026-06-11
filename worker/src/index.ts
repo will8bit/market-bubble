@@ -8,6 +8,7 @@ import { createFanoutServer } from "./server";
 import { getTwitchViewers, getKickViewers } from "./viewers";
 import { getCrypto, getPolymarket, MarketQuote, PolyMarket } from "./markets";
 import { getTwitchMedia, TwitchMedia } from "./media";
+import { getShow } from "./show";
 
 async function main() {
   const port = Number(process.env.PORT || 8080);
@@ -72,6 +73,7 @@ async function main() {
       },
       markets: { crypto, polymarket: poly },
       media,
+      show: getShow(),
     });
   }
 

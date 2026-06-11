@@ -7,11 +7,13 @@ import { AudienceBox } from "@/components/ProPanels";
 import { ChatPanel } from "@/components/ChatPanel";
 import { AdminTools } from "@/components/AdminTools";
 import { useAuth } from "@/lib/auth";
+import { useChatFeed } from "@/lib/chat/useChatFeed";
 import { useColors } from "@/theme/useColors";
 
 export default function AdminPage() {
   const c = useColors();
   const { admin, ready } = useAuth();
+  const { messages } = useChatFeed(false);
 
   return (
     <Flex
@@ -64,17 +66,17 @@ export default function AdminPage() {
           overflowY={{ base: "auto", lg: "visible" }}
         >
           <Box w={{ base: "100%", lg: "320px" }} flexShrink={0} minH={{ base: "440px", lg: 0 }}>
-            <AdminTools />
+            <AdminTools messages={messages} />
           </Box>
 
           <Box
             flex="1"
             minW={0}
             minH={0}
-            overflowY={{ base: "visible", lg: "auto" }}
-            display={{ lg: "flex" }}
+            display={{ base: "block", lg: "flex" }}
             flexDirection={{ lg: "column" }}
-            sx={{ "&::-webkit-scrollbar": { display: "none" }, scrollbarWidth: "none" }}
+            gap={{ base: "8px", md: "14px" }}
+            overflow={{ base: "visible", lg: "hidden" }}
           >
             <Box
               bg={c.surface}
@@ -83,13 +85,23 @@ export default function AdminPage() {
               borderRadius={c.radius.panel}
               boxShadow={c.shadow.soft}
               p={{ base: "12px", md: "18px" }}
-              flexShrink={0}
-              mb={{ base: "8px", md: "14px" }}
+              mb={{ base: "8px", lg: 0 }}
+              flex={{ lg: "1" }}
+              minH={{ lg: 0 }}
+              overflow="hidden"
+              display={{ lg: "flex" }}
+              flexDirection={{ lg: "column" }}
             >
-              <VideoStage hideViewerCount />
+              <VideoStage hideViewerCount fitHeight />
             </Box>
-            <Box flex={{ lg: "1 0 auto" }} display={{ lg: "flex" }} flexDirection={{ lg: "column" }}>
-              <AudienceBox />
+            <Box
+              flex={{ lg: "1" }}
+              minH={{ lg: 0 }}
+              overflow="hidden"
+              display={{ lg: "flex" }}
+              flexDirection={{ lg: "column" }}
+            >
+              <AudienceBox admin messages={messages} />
             </Box>
           </Box>
 

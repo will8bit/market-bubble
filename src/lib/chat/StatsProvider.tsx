@@ -57,6 +57,10 @@ export interface Stats {
     clips: MediaClip[];
     broadcasts: MediaVideo[];
   };
+  show?: {
+    title: string;
+    subtitle: string;
+  };
 }
 
 const Context = createContext<Stats | null>(null);

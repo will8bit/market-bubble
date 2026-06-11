@@ -8,7 +8,7 @@ export default function PopoutChat() {
   const c = useColors();
   return (
     <Box h="100vh" bg={c.surface} color={c.text.primary} overflow="hidden">
-      <ChatPanel />
+      <ChatPanel popout />
     </Box>
   );
 }

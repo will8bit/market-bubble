@@ -1,6 +1,7 @@
 import { randomBytes, createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { STREAMERS, ADMIN_USERS } from "./config";
+import { setShow } from "./show";
 
 type Provider = "twitch" | "kick";
 
@@ -115,7 +116,7 @@ async function startTwitch(res: ServerResponse, sessionId?: string) {
     client_id: env("TWITCH_CLIENT_ID"),
     redirect_uri: env("TWITCH_REDIRECT_URI"),
     response_type: "code",
-    scope: "user:write:chat",
+    scope: "user:write:chat channel:manage:broadcast",
     state,
   });
   redirect(res, `https://id.twitch.tv/oauth2/authorize?${p.toString()}`);
@@ -182,7 +183,7 @@ async function startKick(res: ServerResponse, sessionId?: string) {
     client_id: env("KICK_CLIENT_ID"),
     redirect_uri: env("KICK_REDIRECT_URI"),
     response_type: "code",
-    scope: "chat:write user:read",
+    scope: "chat:write user:read channel:write",
     state,
     code_challenge: challenge,
     code_challenge_method: "S256",
@@ -390,6 +391,79 @@ async function sendKick(account: Account, slug: string, message: string): Promis
   }
 }
 
+async function setTwitchTitle(account: Account, title: string): Promise<SendResult> {
+  try {
+    const r = await fetch(
+      `https://api.twitch.tv/helix/channels?broadcaster_id=${encodeURIComponent(account.userId)}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Client-Id": env("TWITCH_CLIENT_ID"),
+          authorization: `Bearer ${account.accessToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ title }),
+      }
+    );
+    if (r.status === 204) return { ok: true };
+    const body = (await r.json().catch(() => null)) as { message?: string; error?: string } | null;
+    const detail = body?.message || body?.error || `status ${r.status}`;
+    if (r.status === 401) return { ok: false, error: `Twitch auth — reconnect (${detail})` };
+    if (r.status === 403) return { ok: false, error: `Twitch: missing permission (${detail})` };
+    return { ok: false, error: `Twitch: ${detail}` };
+  } catch {
+    return { ok: false, error: "Twitch title update failed" };
+  }
+}
+
+async function setKickTitle(account: Account, title: string): Promise<SendResult> {
+  try {
+    const r = await fetch("https://api.kick.com/public/v1/channels", {
+      method: "PATCH",
+      headers: {
+        authorization: `Bearer ${account.accessToken}`,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({ stream_title: title }),
+    });
+    if (r.ok || r.status === 204) return { ok: true };
+    const body = (await r.json().catch(() => null)) as { message?: string; error?: string } | null;
+    const detail = body?.message || body?.error || `status ${r.status}`;
+    if (r.status === 401) return { ok: false, error: `Kick auth — reconnect (${detail})` };
+    if (r.status === 403) return { ok: false, error: `Kick: missing permission (${detail})` };
+    return { ok: false, error: `Kick: ${detail}` };
+  } catch {
+    return { ok: false, error: "Kick title update failed" };
+  }
+}
+
+async function handleAdminShow(req: IncomingMessage, res: ServerResponse) {
+  if (req.method !== "POST") return json(res, 405, { ok: false, error: "method not allowed" });
+  const session = getSession(req);
+  if (!isAdmin(session)) return json(res, 403, { ok: false, error: "not authorized" });
+  const body = await readJson(req);
+  const show = setShow({ title: body.title, subtitle: body.subtitle });
+  return json(res, 200, { ok: true, show });
+}
+
+async function handleStreamTitle(req: IncomingMessage, res: ServerResponse) {
+  if (req.method !== "POST") return json(res, 405, { ok: false, error: "method not allowed" });
+  const session = getSession(req);
+  if (!isAdmin(session)) return json(res, 403, { ok: false, error: "not authorized" });
+  const body = await readJson(req);
+  const platform = body.platform === "twitch" || body.platform === "kick" ? body.platform : null;
+  const title = (typeof body.title === "string" ? body.title : "").trim();
+  if (!platform) return json(res, 400, { ok: false, error: "invalid platform" });
+  if (!title) return json(res, 400, { ok: false, error: "empty title" });
+  const account = session![platform];
+  if (!account) return json(res, 400, { ok: false, error: `link ${platform} first` });
+  const fresh = await ensureFresh(platform, account);
+  if (!fresh) return json(res, 400, { ok: false, error: `${platform} session expired — reconnect` });
+  const result = platform === "twitch" ? await setTwitchTitle(account, title) : await setKickTitle(account, title);
+  return json(res, result.ok ? 200 : 400, result);
+}
+
 interface SendCtx {
   broadcastSent: (marker: Record<string, unknown>) => void;
 }
@@ -472,7 +546,7 @@ export async function handleAuthRequest(
 ): Promise<boolean> {
   const url = new URL(req.url || "/", "http://localhost");
   const path = url.pathname;
-  if (!path.startsWith("/auth/") && path !== "/chat/send") return false;
+  if (!path.startsWith("/auth/") && path !== "/chat/send" && !path.startsWith("/admin/")) return false;
 
   if (req.method === "OPTIONS") {
     cors(res);
@@ -483,6 +557,16 @@ export async function handleAuthRequest(
 
   if (path === "/chat/send") {
     await handleSend(req, res, ctx);
+    return true;
+  }
+
+  if (path === "/admin/show") {
+    await handleAdminShow(req, res);
+    return true;
+  }
+
+  if (path === "/admin/stream-title") {
+    await handleStreamTitle(req, res);
     return true;
   }
 

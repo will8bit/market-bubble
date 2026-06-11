@@ -5,6 +5,7 @@ import { ChakraProvider, ColorModeScript } from "@chakra-ui/react";
 import theme from "@/theme";
 import { ProModeProvider } from "@/lib/proMode";
 import { StatsProvider } from "@/lib/chat/StatsProvider";
+import { ShowProvider } from "@/lib/showConfig";
 import { SettingsProvider } from "@/lib/settings";
 import { AuthProvider } from "@/lib/auth";
 import { GoLiveNotifier } from "@/components/GoLiveNotifier";
@@ -27,9 +28,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <SettingsProvider>
               <ProModeProvider>
                 <StatsProvider>
-                <GoLiveNotifier />
-                {children}
-              </StatsProvider>
+                  <ShowProvider>
+                    <GoLiveNotifier />
+                    {children}
+                  </ShowProvider>
+                </StatsProvider>
               </ProModeProvider>
             </SettingsProvider>
           </AuthProvider>

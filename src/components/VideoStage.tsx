@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, type ReactNode } from "react";
-import { Box, HStack, VStack, Text, Flex, AspectRatio } from "@chakra-ui/react";
+import { Box, HStack, VStack, Text, Flex } from "@chakra-ui/react";
 import { FaTwitch, FaXTwitter } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
 import { LuEye } from "react-icons/lu";
 import { useColors } from "@/theme/useColors";
 import { useStats } from "@/lib/chat/StatsProvider";
+import { useShow } from "@/lib/showConfig";
 import { MarketBubbleLockup } from "./LogoLockup";
 import { RollingNumber } from "./RollingNumber";
 
@@ -276,11 +277,18 @@ function TwitchPlayer({ channel, host }: { channel: string; host: string }) {
   );
 }
 
-function VideoFrame() {
+function VideoFrame({ fitHeight = false }: { fitHeight?: boolean }) {
   const c = useColors();
   const [host, setHost] = useState("");
 
   useEffect(() => setHost(window.location.hostname), []);
+
+  const inner =
+    host && VIDEO_TWITCH ? (
+      <TwitchPlayer channel={VIDEO_TWITCH} host={host} />
+    ) : (
+      <Box bg="#000" w="100%" h="100%" />
+    );
 
   return (
     <Box
@@ -290,31 +298,54 @@ function VideoFrame() {
       boxShadow={c.shadow.soft}
       display="flex"
       justifyContent="center"
+      alignItems="center"
+      flex={fitHeight ? { lg: "1" } : undefined}
+      minH={fitHeight ? { lg: 0 } : undefined}
     >
-      <Box position="relative" w="100%" maxW="1280px">
-        <AspectRatio ratio={16 / 9}>
-          {host && VIDEO_TWITCH ? (
-            <TwitchPlayer channel={VIDEO_TWITCH} host={host} />
-          ) : (
-            <Box bg="#000" />
-          )}
-        </AspectRatio>
+      <Box
+        position="relative"
+        w={fitHeight ? { base: "100%", lg: "auto" } : "100%"}
+        h={fitHeight ? { base: "auto", lg: "100%" } : "auto"}
+        maxW={fitHeight ? "100%" : "1280px"}
+        sx={{ aspectRatio: "16 / 9" }}
+      >
+        {inner}
       </Box>
     </Box>
   );
 }
 
-export function VideoStage({ hideViewerCount = false }: { hideViewerCount?: boolean }) {
+export function VideoStage({
+  hideViewerCount = false,
+  fitHeight = false,
+}: {
+  hideViewerCount?: boolean;
+  fitHeight?: boolean;
+}) {
   const c = useColors();
   const stats = useStats();
+  const { title: showTitle, subtitle: showSubtitle } = useShow();
   const total = stats?.viewers.total ?? null;
   const live = Boolean(stats?.viewers.twitchStartedAt);
 
   return (
-    <Box>
-      <VideoFrame />
+    <Box
+      h={fitHeight ? { lg: "100%" } : undefined}
+      display={fitHeight ? { lg: "flex" } : undefined}
+      flexDirection={fitHeight ? { lg: "column" } : undefined}
+      minH={fitHeight ? { lg: 0 } : undefined}
+    >
+      <VideoFrame fitHeight={fitHeight} />
 
-      <Flex mt="18px" px="8px" align="flex-start" justify="space-between" gap="20px" flexWrap="wrap">
+      <Flex
+        mt="18px"
+        px="8px"
+        align="flex-start"
+        justify="space-between"
+        gap="20px"
+        flexWrap="wrap"
+        flexShrink={0}
+      >
         <Box>
           <Text
             fontFamily="heading"
@@ -323,11 +354,11 @@ export function VideoStage({ hideViewerCount = false }: { hideViewerCount?: bool
             lineHeight={1.05}
             color={c.text.primary}
           >
-            Greg Osuri &amp; Mayne: Market Bubble EP 4
+            {showTitle}
           </Text>
           <Box mt="12px">
             <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.08em" color={c.text.subtle}>
-              THURSDAY 1PM PST · PRESENTED BY POLYMARKET
+              {showSubtitle}
             </Text>
           </Box>
         </Box>

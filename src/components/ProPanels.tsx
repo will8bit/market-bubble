@@ -1,16 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Box, Flex, HStack, Image, Text, VStack, type BoxProps } from "@chakra-ui/react";
 import { FaTwitch, FaXTwitter } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
 import { LuCalendar, LuX, LuExternalLink, LuEye } from "react-icons/lu";
 import { useStats, type MarketQuote, type MediaClip, type MediaVideo } from "@/lib/chat/StatsProvider";
+import type { ChatMessage } from "@/lib/chat/types";
 import { useSettings } from "@/lib/settings";
 import { usePersistentState } from "@/lib/usePersistentState";
 import { RollingNumber } from "./RollingNumber";
+import { PoppedOut } from "./PoppedOut";
+import { usePopoutHost, usePopoutClient } from "@/lib/usePopout";
 import { useAvatar } from "@/lib/avatars";
 import { useColors } from "@/theme/useColors";
+
+const AUDIENCE_POPOUT_URL = "/popout/marketbubble/audience?popout=";
+const AUDIENCE_POPOUT_NAME = "mb-audience";
+const AUDIENCE_POPOUT_FEATURES = "popup=yes,width=560,height=820";
 
 function fmtNum(p: number) {
   if (p >= 1000) return Math.round(p).toLocaleString();
@@ -572,7 +579,7 @@ function fmtViews(n: number): string {
 
 type ActiveMedia = { kind: "clip" | "video"; id: string; title: string; url: string };
 
-function AudienceTab() {
+function AudienceTab({ admin = false, messages = [] }: { admin?: boolean; messages?: ChatMessage[] }) {
   const c = useColors();
   const stats = useStats();
   const v = stats?.viewers;
@@ -608,7 +615,412 @@ function AudienceTab() {
         />
         <TotalTile total={v?.total ?? null} site={v?.site ?? null} peak={v?.peak ?? null} />
       </Flex>
+
+      {admin && <AdminAudienceExtras messages={messages} startedAt={v?.twitchStartedAt ?? null} />}
     </Box>
+  );
+}
+
+function useTick(ms: number) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), ms);
+    return () => clearInterval(t);
+  }, [ms]);
+  return now;
+}
+
+function fmtUptime(startedAt: string | null, now: number): string {
+  if (!startedAt) return "offline";
+  const d = now - new Date(startedAt).getTime();
+  if (d < 0) return "offline";
+  const h = Math.floor(d / 3600000);
+  const m = Math.floor((d % 3600000) / 60000);
+  const s = Math.floor((d % 60000) / 1000);
+  return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+const PLATFORM_KEYS: { key: ChatMessage["platform"]; label: string }[] = [
+  { key: "twitch", label: "Twitch" },
+  { key: "kick", label: "Kick" },
+  { key: "x", label: "X" },
+];
+
+function MiniStat({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
+  const c = useColors();
+  return (
+    <Box flex="1" minW={0}>
+      <Text fontFamily="mono" fontSize={AUD_LABEL} letterSpacing="0.1em" color={c.text.muted}>
+        {label}
+      </Text>
+      <Text
+        fontFamily="mono"
+        fontSize="1.5em"
+        fontWeight={600}
+        lineHeight="1.1"
+        color={accent || c.text.primary}
+        mt="0.2em"
+        sx={{ fontVariantNumeric: "tabular-nums" }}
+        noOfLines={1}
+      >
+        {value}
+      </Text>
+    </Box>
+  );
+}
+
+function AdminAudienceExtras({
+  messages,
+  startedAt,
+}: {
+  messages: ChatMessage[];
+  startedAt: string | null;
+}) {
+  const c = useColors();
+  const now = useTick(1000);
+
+  const m = useMemo(() => {
+    const minAgo = now - 60000;
+    const fiveAgo = now - 300000;
+    let perMin = 0;
+    const chatters = new Set<string>();
+    const split: Record<string, number> = { twitch: 0, kick: 0, x: 0 };
+    for (const msg of messages) {
+      if (msg.timestamp >= minAgo) perMin += 1;
+      if (msg.timestamp >= fiveAgo) {
+        chatters.add(msg.author.name.toLowerCase());
+        if (msg.platform in split) split[msg.platform] += 1;
+      }
+    }
+    const splitTotal = split.twitch + split.kick + split.x;
+    return { perMin, chatters: chatters.size, split, splitTotal };
+  }, [messages, now]);
+
+  const pct = (n: number) => (m.splitTotal ? Math.round((n / m.splitTotal) * 100) : 0);
+  const splitColor: Record<string, string> = {
+    twitch: c.platform.twitch,
+    kick: c.platform.kick,
+    x: c.text.muted,
+  };
+
+  return (
+    <Box mt="1.5em" pt="1.1em" borderTop="1px solid" borderColor={c.border.subtle}>
+      <HStack spacing="1.5em" align="flex-start">
+        <MiniStat label="UPTIME" value={fmtUptime(startedAt, now)} />
+        <MiniStat label="MSGS / MIN" value={m.perMin} />
+        <MiniStat label="ACTIVE · 5M" value={m.chatters} />
+      </HStack>
+
+      <Box mt="1.1em">
+        <Flex justify="space-between" align="center" mb="0.5em">
+          <Text fontFamily="mono" fontSize={AUD_LABEL} letterSpacing="0.1em" color={c.text.muted}>
+            CHAT SPLIT · 5M
+          </Text>
+          <HStack spacing="0.9em">
+            {PLATFORM_KEYS.map((p) => (
+              <HStack key={p.key} spacing="0.35em">
+                <Box w="0.5em" h="0.5em" borderRadius="full" bg={splitColor[p.key]} />
+                <Text fontFamily="mono" fontSize={AUD_LABEL} color={c.text.secondary}>
+                  {pct(m.split[p.key])}%
+                </Text>
+              </HStack>
+            ))}
+          </HStack>
+        </Flex>
+        <Flex h="0.6em" gap="6px" w="100%">
+          {m.splitTotal === 0 ? (
+            <Box flex="1" borderRadius="full" bg={c.surfaceLight} />
+          ) : (
+            PLATFORM_KEYS.filter((p) => m.split[p.key] > 0).map((p) => (
+              <Box
+                key={p.key}
+                flexGrow={m.split[p.key]}
+                flexBasis={0}
+                minW="0.6em"
+                borderRadius="full"
+                bg={splitColor[p.key]}
+              />
+            ))
+          )}
+        </Flex>
+      </Box>
+    </Box>
+  );
+}
+
+function HealthDot({ color, size = 8 }: { color: string; size?: number }) {
+  return <Box w={`${size}px`} h={`${size}px`} borderRadius="full" bg={color} flexShrink={0} />;
+}
+
+const SPARK_BAR = 3;
+const SPARK_GAP = 3;
+const SPARK_WIN = 60000;
+
+function Sparkline({ times, now, color }: { times: number[]; now: number; color: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setWidth(el.clientWidth);
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) setWidth(e.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const count = Math.max(6, Math.floor((width + SPARK_GAP) / (SPARK_BAR + SPARK_GAP)));
+
+  const buckets = useMemo(() => {
+    const arr = new Array(count).fill(0);
+    const size = SPARK_WIN / count;
+    for (const t of times) {
+      const d = now - t;
+      if (d < 0 || d >= SPARK_WIN) continue;
+      const idx = count - 1 - Math.floor(d / size);
+      if (idx >= 0 && idx < count) arr[idx] += 1;
+    }
+    return arr;
+  }, [times, now, count]);
+
+  const max = Math.max(1, ...buckets);
+
+  return (
+    <Flex
+      ref={ref}
+      flex="1"
+      minW="60px"
+      h="24px"
+      align="flex-end"
+      justify="space-between"
+      overflow="hidden"
+    >
+      {buckets.map((v, i) => (
+        <Box
+          key={i}
+          w={`${SPARK_BAR}px`}
+          flexShrink={0}
+          h={`${Math.max(10, (v / max) * 100)}%`}
+          borderRadius="1px"
+          bg={color}
+          opacity={v ? 0.35 + 0.65 * (v / max) : 0.13}
+        />
+      ))}
+    </Flex>
+  );
+}
+
+function StatusPill({ color, label }: { color: string; label: string }) {
+  return (
+    <Box bg={`${color}1f`} px="10px" py="4px" borderRadius="full" flexShrink={0}>
+      <Text fontFamily="mono" fontSize="2xs" fontWeight={600} letterSpacing="0.05em" color={color}>
+        {label}
+      </Text>
+    </Box>
+  );
+}
+
+const FEED_ICON: Record<string, ReactNode> = {
+  twitch: <FaTwitch size={16} />,
+  kick: <SiKick size={16} />,
+  x: <FaXTwitter size={15} />,
+};
+
+function feedHealth(
+  c: ReturnType<typeof useColors>,
+  ageMs: number | null,
+  thresholds: [number, number]
+) {
+  if (ageMs == null) return { rank: 3, color: c.text.subtle, label: "No data" };
+  if (ageMs < thresholds[0]) return { rank: 0, color: c.brand.green, label: "Active" };
+  if (ageMs < thresholds[1]) return { rank: 1, color: c.brand.gold, label: "Slow" };
+  return { rank: 2, color: c.brand.red, label: "Idle" };
+}
+
+function ageStr(ageMs: number | null): string {
+  if (ageMs == null) return "no messages yet";
+  const s = Math.floor(ageMs / 1000);
+  if (s < 60) return `${s}s ago`;
+  const min = Math.floor(s / 60);
+  return min < 60 ? `${min}m ago` : `${Math.floor(min / 60)}h ago`;
+}
+
+function FeedHealthTab({ messages }: { messages: ChatMessage[] }) {
+  const c = useColors();
+  const now = useTick(1000);
+  const stats = useStats();
+  const [lastStatsAt, setLastStatsAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (stats) setLastStatsAt(Date.now());
+  }, [stats]);
+
+  const feedData = useMemo(() => {
+    const per: Record<string, { last: number; rate: number; times: number[] }> = {};
+    for (const key of ["twitch", "kick", "x"]) {
+      per[key] = { last: 0, rate: 0, times: [] };
+    }
+    for (const msg of messages) {
+      const p = per[msg.platform];
+      if (!p) continue;
+      if (msg.timestamp > p.last) p.last = msg.timestamp;
+      const d = now - msg.timestamp;
+      if (d >= 0 && d < SPARK_WIN) {
+        p.rate += 1;
+        p.times.push(msg.timestamp);
+      }
+    }
+    return per;
+  }, [messages, now]);
+
+  const v = stats?.viewers;
+  const accents: Record<string, string> = {
+    twitch: c.platform.twitch,
+    kick: c.platform.kick,
+    x: c.platform.x,
+  };
+  const viewersByKey: Record<string, number | null> = {
+    twitch: v?.twitch ?? null,
+    kick: v?.kick ?? null,
+    x: null,
+  };
+
+  const feeds = PLATFORM_KEYS.map((p) => {
+    const d = feedData[p.key];
+    const age = d.last ? now - d.last : null;
+    const viewers = viewersByKey[p.key];
+    const expected = d.last > 0 || viewers != null;
+    return {
+      ...p,
+      age,
+      viewers,
+      rate: d.rate,
+      times: d.times,
+      expected,
+      h: feedHealth(c, age, [30000, 120000]),
+    };
+  });
+
+  const expectedFeeds = feeds.filter((f) => f.expected);
+  const n = expectedFeeds.length;
+  const activeCount = expectedFeeds.filter((f) => f.h.rank === 0).length;
+  const anySlow = expectedFeeds.some((f) => f.h.rank === 1);
+  const totalRate = feeds.reduce((a, f) => a + f.rate, 0);
+  const sub = `${activeCount}/${n} sources active`;
+  const overall =
+    n === 0
+      ? { color: c.text.subtle, label: "STANDBY", sub: "waiting for stream" }
+      : activeCount === n
+        ? { color: c.brand.green, label: "ALL FEEDS LIVE", sub }
+        : activeCount > 0
+          ? { color: c.brand.gold, label: "PARTIAL ACTIVITY", sub }
+          : anySlow
+            ? { color: c.brand.gold, label: "FEEDS SLOWING", sub }
+            : { color: c.brand.red, label: "FEEDS IDLE", sub };
+
+  const statsAge = lastStatsAt == null ? null : now - lastStatsAt;
+  const statsH = feedHealth(c, statsAge, [30000, 120000]);
+
+  return (
+    <VStack align="stretch" spacing="10px" w="100%">
+      <Flex
+        align="center"
+        justify="space-between"
+        px="16px"
+        py="14px"
+        borderRadius={c.radius.card}
+        bg={`${overall.color}14`}
+        border="1px solid"
+        borderColor={`${overall.color}33`}
+      >
+        <HStack spacing="13px" minW={0}>
+          <HealthDot color={overall.color} size={11} />
+          <Box minW={0}>
+            <Text fontFamily="mono" fontSize="sm" fontWeight={700} letterSpacing="0.08em" color={overall.color}>
+              {overall.label}
+            </Text>
+            <Text fontFamily="mono" fontSize="2xs" color={c.text.muted} mt="2px">
+              {overall.sub}
+            </Text>
+          </Box>
+        </HStack>
+        <Box textAlign="right" flexShrink={0}>
+          <Text
+            fontFamily="mono"
+            fontSize="xl"
+            fontWeight={700}
+            lineHeight="1"
+            color={c.text.primary}
+            sx={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            {totalRate}
+          </Text>
+          <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.08em" color={c.text.subtle} mt="3px">
+            MSGS / MIN
+          </Text>
+        </Box>
+      </Flex>
+
+      {feeds.map((f) => (
+        <Flex
+          key={f.key}
+          align="center"
+          gap="13px"
+          px="14px"
+          py="12px"
+          borderRadius={c.radius.card}
+          bg={c.surfaceLight}
+          border="1px solid"
+          borderColor={c.border.subtle}
+        >
+          <Flex
+            w="36px"
+            h="36px"
+            flexShrink={0}
+            align="center"
+            justify="center"
+            borderRadius="11px"
+            bg={`${accents[f.key]}1f`}
+            color={accents[f.key]}
+          >
+            {FEED_ICON[f.key]}
+          </Flex>
+
+          <Box flex="1" minW={0}>
+            <Text fontSize="sm" fontWeight={600} color={c.text.primary} lineHeight="1.2">
+              {f.label}
+            </Text>
+            <Text fontFamily="mono" fontSize="2xs" color={c.text.subtle} mt="2px" noOfLines={1}>
+              {f.viewers != null ? `${f.viewers.toLocaleString()} watching · ` : ""}
+              {f.rate > 0 ? `${f.rate}/min · ` : ""}
+              {ageStr(f.age)}
+            </Text>
+          </Box>
+
+          <Sparkline times={f.times} now={now} color={accents[f.key]} />
+          <StatusPill color={f.h.color} label={f.h.label} />
+        </Flex>
+      ))}
+
+      <Flex
+        align="center"
+        justify="space-between"
+        px="14px"
+        py="11px"
+        borderRadius={c.radius.card}
+        bg={c.overlay.soft}
+        border="1px solid"
+        borderColor={c.border.subtle}
+      >
+        <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.06em" color={c.text.secondary}>
+          DATA LINK · worker
+        </Text>
+        <Text fontFamily="mono" fontSize="2xs" color={statsH.color}>
+          {statsH.label.toLowerCase()} · {ageStr(statsAge)}
+        </Text>
+      </Flex>
+    </VStack>
   );
 }
 
@@ -987,12 +1399,55 @@ function MediaPlayer({ media, onClose }: { media: ActiveMedia; onClose: () => vo
   );
 }
 
-type AudienceTabKey = "audience" | "about" | "history" | "clips";
+type AudienceTabKey = "audience" | "about" | "health" | "history" | "clips";
 
-export function AudienceBox() {
+export function AudienceBox({
+  admin = false,
+  messages = [],
+  popout = false,
+}: {
+  admin?: boolean;
+  messages?: ChatMessage[];
+  popout?: boolean;
+}) {
   const c = useColors();
-  const [tab, setTab] = usePersistentState<AudienceTabKey>("mb-audience-tab", "audience");
+  usePopoutClient("audience", popout);
+  const poppedOut = usePopoutHost("audience", admin && !popout);
+  const [tab, setTab] = usePersistentState<AudienceTabKey>(
+    admin ? "mb-admin-audience-tab" : "mb-audience-tab",
+    "audience"
+  );
   const [active, setActive] = useState<ActiveMedia | null>(null);
+
+  const validTabs: AudienceTabKey[] = admin
+    ? ["audience", "health"]
+    : ["audience", "about", "history", "clips"];
+  const current = validTabs.includes(tab) ? tab : "audience";
+
+  if (admin && !popout && poppedOut) {
+    return (
+      <Box
+        bg={c.surface}
+        border="1px solid"
+        borderColor={c.border.subtle}
+        borderRadius={c.radius.panel}
+        boxShadow={c.shadow.soft}
+        flex="1"
+        minH={0}
+        display="flex"
+        flexDirection="column"
+      >
+        <PoppedOut
+          label="Audience"
+          url={AUDIENCE_POPOUT_URL}
+          winName={AUDIENCE_POPOUT_NAME}
+          features={AUDIENCE_POPOUT_FEATURES}
+          popoutKey="audience"
+        />
+      </Box>
+    );
+  }
+
   return (
     <Box
       bg={c.surface}
@@ -1003,36 +1458,84 @@ export function AudienceBox() {
       px="24px"
       py="16px"
       flex="1"
+      minH={0}
       display="flex"
       flexDirection="column"
     >
-      <HStack
-        spacing="2px"
-        bg={c.overlay.soft}
-        borderRadius={c.radius.control}
-        p="3px"
-        mb="14px"
-        flexShrink={0}
-        alignSelf="center"
+      <Flex align="center" mb="14px" flexShrink={0} position="relative">
+        <HStack
+          spacing="2px"
+          bg={c.overlay.soft}
+          borderRadius={c.radius.control}
+          p="3px"
+          mx="auto"
+        >
+          <TabButton active={current === "audience"} onClick={() => setTab("audience")}>
+            AUDIENCE
+          </TabButton>
+          {admin ? (
+            <TabButton active={current === "health"} onClick={() => setTab("health")}>
+              FEED HEALTH
+            </TabButton>
+          ) : (
+            <>
+              <TabButton active={current === "about"} onClick={() => setTab("about")}>
+                ABOUT
+              </TabButton>
+              <TabButton active={current === "history"} onClick={() => setTab("history")}>
+                HISTORY
+              </TabButton>
+              <TabButton active={current === "clips"} onClick={() => setTab("clips")}>
+                CLIPS
+              </TabButton>
+            </>
+          )}
+        </HStack>
+        {admin && !popout && (
+          <Box
+            as="button"
+            onClick={() =>
+              window.open(AUDIENCE_POPOUT_URL, AUDIENCE_POPOUT_NAME, AUDIENCE_POPOUT_FEATURES)
+            }
+            position="absolute"
+            right="0"
+            top="50%"
+            transform="translateY(-50%)"
+            display="inline-flex"
+            alignItems="center"
+            justifyContent="center"
+            w="30px"
+            h="30px"
+            borderRadius={c.radius.control}
+            color={c.text.muted}
+            _hover={{ color: c.text.primary, bg: c.overlay.soft }}
+            transition="all 0.15s"
+            aria-label="Pop out audience"
+          >
+            <LuExternalLink size={16} />
+          </Box>
+        )}
+      </Flex>
+      <Box
+        flex={admin ? "1" : undefined}
+        minH={admin ? 0 : undefined}
+        overflowY={admin ? "auto" : "visible"}
+        sx={
+          admin
+            ? {
+                scrollbarWidth: "thin",
+                "&::-webkit-scrollbar": { width: "7px" },
+                "&::-webkit-scrollbar-thumb": { background: c.border.default, borderRadius: "4px" },
+                "&::-webkit-scrollbar-track": { background: "transparent" },
+              }
+            : undefined
+        }
       >
-        <TabButton active={tab === "audience"} onClick={() => setTab("audience")}>
-          AUDIENCE
-        </TabButton>
-        <TabButton active={tab === "about"} onClick={() => setTab("about")}>
-          ABOUT
-        </TabButton>
-        <TabButton active={tab === "history"} onClick={() => setTab("history")}>
-          HISTORY
-        </TabButton>
-        <TabButton active={tab === "clips"} onClick={() => setTab("clips")}>
-          CLIPS
-        </TabButton>
-      </HStack>
-      <Box overflowY="visible">
-        {tab === "audience" && <AudienceTab />}
-        {tab === "about" && <AboutTab />}
-        {tab === "history" && <MediaList kind="broadcasts" onOpen={setActive} />}
-        {tab === "clips" && <MediaList kind="clips" onOpen={setActive} />}
+        {current === "audience" && <AudienceTab admin={admin} messages={messages} />}
+        {current === "about" && !admin && <AboutTab />}
+        {current === "health" && admin && <FeedHealthTab messages={messages} />}
+        {current === "history" && <MediaList kind="broadcasts" onOpen={setActive} />}
+        {current === "clips" && <MediaList kind="clips" onOpen={setActive} />}
       </Box>
       {active ? <MediaPlayer media={active} onClose={() => setActive(null)} /> : null}
     </Box>

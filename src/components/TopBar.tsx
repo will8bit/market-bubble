@@ -1,7 +1,8 @@
 "use client";
 
 import { HStack, Text, Flex, Box } from "@chakra-ui/react";
-import { LuLayoutDashboard, LuShield } from "react-icons/lu";
+import { usePathname } from "next/navigation";
+import { LuLayoutDashboard, LuShield, LuHouse } from "react-icons/lu";
 import { Logo } from "./Logo";
 import { TickerBar } from "./TickerBar";
 import { ProfileMenu } from "./ProfileMenu";
@@ -9,14 +10,14 @@ import { useProMode } from "@/lib/proMode";
 import { useAuth } from "@/lib/auth";
 import { useColors } from "@/theme/useColors";
 
-function AdminButton() {
+function AdminButton({ onAdmin }: { onAdmin: boolean }) {
   const c = useColors();
   const { admin } = useAuth();
   if (!admin) return null;
   return (
     <HStack
       as="a"
-      href="/admin"
+      href={onAdmin ? "/" : "/admin"}
       spacing="7px"
       px="11px"
       py="7px"
@@ -27,11 +28,11 @@ function AdminButton() {
       color={c.text.secondary}
       _hover={{ color: c.text.primary, bg: c.overlay.hover }}
       transition="all 0.15s"
-      aria-label="Admin dashboard"
+      aria-label={onAdmin ? "Back to stream" : "Admin dashboard"}
     >
-      <LuShield size={15} />
+      {onAdmin ? <LuHouse size={15} /> : <LuShield size={15} />}
       <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.1em">
-        ADMIN
+        {onAdmin ? "HOME" : "ADMIN"}
       </Text>
     </HStack>
   );
@@ -67,6 +68,7 @@ function ProToggle() {
 
 export function TopBar() {
   const c = useColors();
+  const onAdmin = usePathname() === "/admin";
   return (
     <Flex
       as="header"
@@ -88,8 +90,8 @@ export function TopBar() {
       <TickerBar />
 
       <HStack spacing={{ base: "8px", md: "10px" }} flexShrink={0}>
-        <ProToggle />
-        <AdminButton />
+        {!onAdmin && <ProToggle />}
+        <AdminButton onAdmin={onAdmin} />
         <ProfileMenu />
       </HStack>
     </Flex>

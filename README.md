@@ -1,68 +1,122 @@
-# Market Bubble — Live Dashboard
+# Market Bubble
 
-A custom watch page for the Market Bubble show: live video plus one unified chat
-aggregated across Twitch, Kick and X, with deep viewer-side filtering.
+**One watch page for a multi-platform live show.** Market Bubble unifies the Twitch, Kick, and X chat for Banks & Ansem's markets show into a single, branded dashboard — with live viewer stats, a real-time markets ticker, a two-tier layout for casual and power viewers, and a secure admin control room for the hosts.
 
-## Stack
+Built for the Vibe Code Challenge.
 
-Mirrors the rune-landing setup:
+---
 
-- Next.js 15 (App Router) + React 19 + TypeScript
-- Chakra UI v2 + Emotion
-- Framer Motion
-- Supabase (`@supabase/ssr`, `supabase-js`) — used for realtime fan-out
-- Deployed on Vercel
+## What it does
 
-## Run
+**Unified live chat.** Twitch, Kick, and X messages stream into one feed, each tagged by platform and host. Read every channel at once in a "Global" view, or filter down to any combination of platform (Twitch / Kick / X) and streamer (Banks / Ansem). Full-text search, cashtag filtering, command hiding, and per-message detail on hover.
+
+**Chat back to every channel at once.** Sign in with Twitch and/or Kick and send a single message that fans out to all your channels simultaneously. Sent messages are de-duplicated across platforms so your own multi-channel post shows up once, marked as global.
+
+**Two layouts, one toggle.**
+- **Simple** — the stream, the show info, and chat. Clean and focused.
+- **Pro** — adds a live markets rail (crypto prices + Polymarket odds) and a real-time audience panel (per-platform viewer counts, Banks-vs-Ansem split, on-site count, and session peak), all on a scrollable stage.
+
+**Live markets.** A crypto ticker bar and Polymarket odds update on an interval, pulled server-side so the browser stays light.
+
+**Pop-out windows.** Pop the chat or the audience/feed-health panel into its own window for a second monitor. The main page detects what's popped out and shows a placeholder with "focus window" and "bring back" controls — synced live across windows.
+
+**Polished details.** Warm light theme and a deep dark theme, an offline screen with a timezone-aware next-episode countdown, rolling-number animations, every preference persisted across reloads and windows, and traced-vector branding driven by `currentColor`.
+
+---
+
+## Admin control room (`/admin`)
+
+A separate, secured dashboard for the hosts — access is computed **server-side** from a whitelist of Twitch usernames (`ADMIN_USERS`), never shipped to the browser, so it can't be spoofed.
+
+- **Moderation** — live curation over the chat: questions queue, starred/saved messages, trending cashtags, top chatters, and a feed of every link posted. Saved items and a rolling message log persist locally, so the lists survive reloads instead of resetting.
+- **Feed Health** — an at-a-glance monitor of each source (Twitch / Kick / X): live/slow/idle status, time since last message, viewer counts, a 60-second activity sparkline, and worker-link freshness.
+- **Audience** — the full viewer breakdown plus uptime, messages/min, active chatters, and a chat-split bar.
+- **Broadcast** — edit the on-site show title and subtitle and **Save** them globally for every viewer in real time, then optionally **push the title to the live Twitch and Kick channels** with one button each (works for whoever owns the channel and is signed in).
+- A focused 50/50 stage (stream over audience) with no page scroll, and a Home button back to the public site.
+
+---
+
+## Architecture
+
+```
+Browser ──reads chat directly──►  Twitch IRC (anon)  ·  Kick Pusher
+   │
+   └──WebSocket──►  Worker  ──►  backfill · X feed · viewer/markets/media stats · show config
+                      │
+                      └── HTTP: OAuth (Twitch / Kick) · /chat/send · /admin/*
+```
+
+- **Chat is read in the browser** over Twitch's anonymous IRC-over-WebSocket and Kick's public Pusher socket — instant, free, no key required.
+- **The worker** (Node, `ws` + raw HTTP) holds the server-side connections, relays the X feed and a ~100-message backfill, and pushes a periodic **stats frame** (viewers, markets, media, show info) to every connected client over one WebSocket.
+- **OAuth and privileged actions** run through the worker: Twitch (auth-code) and Kick (auth-code + PKCE) sign-in, sending chat, the admin show-info save, and the real channel-title updates. Tokens live only on the worker.
+- The normalized message schema lives in `src/lib/chat/types.ts`; both the browser readers and the worker emit the same `ChatMessage`.
+
+**Platform reality:** Twitch and Kick chat are real and live. X has no supported live-broadcast-chat API, so it runs as a clearly-labeled adapter (`worker/src/x.ts`) — swap in a real connector and nothing else changes.
+
+---
+
+## Tech
+
+- **Next.js 15** (App Router) · **React 19** · **TypeScript** (strict)
+- **Chakra UI v2** + Emotion, custom warm-cream / dark theme
+- **Worker:** Node 22 (ESM), `ws` WebSocket server + raw HTTP
+- **Deploy:** frontend on Vercel · worker on Railway
+
+---
+
+## Run locally
+
+**Frontend**
 
 ```bash
 npm install
-cp .env.local.example .env.local
+echo "NEXT_PUBLIC_WORKER_URL=http://localhost:8080" > .env.local
 npm run dev
 ```
 
-The dashboard currently runs on a built-in mock chat feed so the UI is fully
-demoable before the ingestion worker is wired up.
+**Worker** (separate terminal)
 
-## Architecture (planned)
-
-```
-Twitch IRC  ─┐
-Kick Pusher ─┤→  ingestion worker  →  normalized ChatMessage  →  fan-out  →  browsers
-X (demo)    ─┘   (always-on, ~$5/mo)                            (Supabase Realtime)
+```bash
+cd worker
+npm install
+cp .env.example .env   # fill in the values below
+npm run dev
 ```
 
-- The browser never connects to the platforms directly. One worker holds the
-  ~6 upstream connections, normalizes every message into `ChatMessage`
-  (`src/lib/chat/types.ts`), and broadcasts to all viewers.
-- Frontend (Vercel) subscribes to a single realtime channel. Ephemeral chat uses
-  Supabase Realtime *Broadcast* (no DB writes, no DB cost).
-- The fan-out layer is intentionally swappable (Supabase Realtime → Cloudflare
-  Durable Objects) without touching the worker or the frontend.
+### Worker environment
 
-### Platform reality
+| Variable | Purpose |
+| --- | --- |
+| `PORT` | Worker port (default 8080) |
+| `APP_URL` | Frontend origin, for OAuth redirects + CORS |
+| `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` / `TWITCH_REDIRECT_URI` | Twitch OAuth |
+| `KICK_CLIENT_ID` / `KICK_CLIENT_SECRET` / `KICK_REDIRECT_URI` | Kick OAuth |
+| `ADMIN_USERS` | Comma-separated Twitch usernames allowed into `/admin` |
+| `SHOW_TITLE` / `SHOW_SUBTITLE` | Optional defaults for the on-site show info |
 
-- **Twitch** — free, real-time via anonymous IRC-over-WebSocket (justinfan).
-- **Kick** — free, real-time via the public Pusher WebSocket (`ChatMessageEvent`).
-- **X** — no supported API for live broadcast chat, so it runs as a labeled
-  simulated source for now. It's a pluggable adapter (`worker/src/x.ts`); swap in a
-  real connector later and nothing else changes.
+OAuth scopes requested: Twitch `user:write:chat channel:manage:broadcast`, Kick `chat:write user:read channel:write` — the broadcast scopes let signed-in channel owners update their live stream title from the admin Broadcast tab.
 
-The worker lives in `worker/` and is documented in `worker/README.md`. Run the
-frontend on the built-in mock feed (no setup) or point both at the same Supabase
-channel to go live.
+---
 
-## Layout
+## Project layout
 
 ```
 src/
-  app/            layout, providers, page (the watch dashboard)
-  components/     TopBar, VideoStage, TickerBar, ChatPanel, Logo
+  app/
+    page.tsx              public watch page (Simple / Pro)
+    admin/page.tsx        gated admin control room
+    popout/[channel]/     stand-alone chat + audience windows
+    providers.tsx         Chakra, auth, stats, show-config, settings, pro-mode
+  components/
+    VideoStage · ChatPanel · ChatComposer · ProPanels (markets + audience + feed health)
+    AdminTools · TopBar · TickerBar · PoppedOut · Logo
   lib/
-    chat/         types (normalized schema), mock feed, useChatFeed hook
-    tickers.ts    cashtag / price strip data
-    supabase.ts   realtime client
-    chat/realtime.ts  Supabase Realtime subscriber (mock fallback)
-  theme/          colors + Chakra tokens (brand palette)
-worker/           ingestion service (Twitch + Kick + demo X → Supabase Realtime)
+    chat/                 normalized types, browser Twitch/Kick clients, worker socket, stats
+    auth.tsx              Twitch/Kick OAuth session (worker-backed)
+    showConfig.tsx        global show-info (server-synced) + draft/save
+    usePopout.ts          cross-window popout presence
+    usePersistentState.ts localStorage state synced across windows
+  theme/                  colors + Chakra tokens
+worker/
+  src/                    Twitch · Kick · X readers, viewers, markets, media, OAuth, admin API
 ```

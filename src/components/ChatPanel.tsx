@@ -27,7 +27,13 @@ import { useSettings } from "@/lib/settings";
 import { usePersistentState } from "@/lib/usePersistentState";
 import { ChatComposer } from "./ChatComposer";
 import { MarketBubbleMark } from "./Logo";
+import { PoppedOut } from "./PoppedOut";
+import { usePopoutHost, usePopoutClient } from "@/lib/usePopout";
 import { useColors } from "@/theme/useColors";
+
+const CHAT_POPOUT_URL = "/popout/marketbubble/chat?popout=";
+const CHAT_POPOUT_NAME = "mb-chat";
+const CHAT_POPOUT_FEATURES = "popup=yes,width=420,height=760";
 
 const chatEnter = keyframes`
   from { opacity: 0; transform: translateY(9px); }
@@ -475,7 +481,11 @@ const ChatRow = memo(function ChatRow({
     },
     []
   );
-  const chipClr = msg.multi ? c.text.primary : platformColor(c, msg.platform);
+  const chipClr = msg.multi
+    ? c.text.primary
+    : sourceStyle === "subtle"
+      ? c.text.subtle
+      : platformColor(c, msg.platform);
   const nameClr =
     nameColor === "platform"
       ? msg.multi
@@ -552,11 +562,24 @@ const ChatRow = memo(function ChatRow({
               color={chipClr}
               fontSize="2xs"
               fontWeight={700}
-              sx={{ boxShadow: `0 0 8px ${chipClr}44` }}
+              sx={sourceStyle === "glow" ? { boxShadow: `0 0 8px ${chipClr}55` } : undefined}
             >
-              {msg.multi ? <MarketBubbleMark size={11} /> : platformIcon(msg.platform)}
+              {showIcons &&
+                (msg.multi ? <MarketBubbleMark size={11} /> : platformIcon(msg.platform))}
               <Text as="span">{msg.multi ? "Global" : PLATFORM_LABEL[msg.platform]}</Text>
             </Box>
+            {showAvatars && !msg.multi && (
+              <Box as="span" display="inline-flex" verticalAlign="middle" mr="6px">
+                <Image
+                  src={STREAMER_IMG[msg.streamer]}
+                  alt=""
+                  w="16px"
+                  h="16px"
+                  borderRadius="full"
+                  objectFit="cover"
+                />
+              </Box>
+            )}
             {showBadges &&
               msg.author.badges.map((b, i) => (
                 <Box
@@ -677,8 +700,10 @@ const ChatRow = memo(function ChatRow({
   );
 });
 
-export function ChatPanel() {
+export function ChatPanel({ popout = false }: { popout?: boolean } = {}) {
   const c = useColors();
+  usePopoutClient("chat", popout);
+  const poppedOut = usePopoutHost("chat", !popout);
   const [platforms, setPlatforms] = useState<Set<Platform>>(
     () => new Set(loadIdArray("mb-chat-platforms", [...PLATFORMS]) as Platform[])
   );
@@ -797,6 +822,20 @@ export function ChatPanel() {
     setAtBottom(true);
   }
 
+  if (!popout && poppedOut) {
+    return (
+      <Flex direction="column" h="100%" minW={0}>
+        <PoppedOut
+          label="Chat"
+          url={CHAT_POPOUT_URL}
+          winName={CHAT_POPOUT_NAME}
+          features={CHAT_POPOUT_FEATURES}
+          popoutKey="chat"
+        />
+      </Flex>
+    );
+  }
+
   return (
     <Flex direction="column" h="100%" bg="transparent" minW={0} position="relative">
       <Flex
@@ -825,15 +864,15 @@ export function ChatPanel() {
           <IconBtn label="Filters" active={panel === "filters"} onClick={() => togglePanel("filters")}>
             <LuListFilter size={16} />
           </IconBtn>
-          <IconBtn
-            label="Pop out chat"
-            active={false}
-            onClick={() =>
-              window.open("/popout/marketbubble/chat?popout=", "mb-chat", "popup=yes,width=420,height=760")
-            }
-          >
-            <LuExternalLink size={16} />
-          </IconBtn>
+          {!popout && (
+            <IconBtn
+              label="Pop out chat"
+              active={false}
+              onClick={() => window.open(CHAT_POPOUT_URL, CHAT_POPOUT_NAME, CHAT_POPOUT_FEATURES)}
+            >
+              <LuExternalLink size={16} />
+            </IconBtn>
+          )}
         </HStack>
       </Flex>
 

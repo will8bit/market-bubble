@@ -115,8 +115,8 @@ export function colors(isDark: boolean) {
     selection: isDark ? palette.darkSelection : palette.lightSelection,
 
     shadow: {
-      panel: isDark ? "0 24px 60px rgba(0,0,0,0.5)" : "0 24px 60px rgba(0,0,0,0.1)",
-      soft: isDark ? "0 12px 32px rgba(0,0,0,0.35)" : "0 12px 32px rgba(0,0,0,0.07)",
+      panel: isDark ? "0 24px 60px rgba(0,0,0,0.5)" : "none",
+      soft: isDark ? "0 12px 32px rgba(0,0,0,0.35)" : "none",
     },
     radius: {
       panel: "22px",
