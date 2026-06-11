@@ -354,11 +354,13 @@ async function sendTwitch(account: Account, login: string, message: string): Pro
       return { ok: false, error: `Twitch: ${detail}` };
     }
     const d = (await r.json().catch(() => null)) as {
-      data?: Array<{ is_sent?: boolean; drop_reason?: { message?: string } | null }>;
+      data?: Array<{ is_sent?: boolean; drop_reason?: { code?: string; message?: string } | null }>;
     } | null;
     const item = d?.data?.[0];
     if (item && item.is_sent === false) {
-      return { ok: false, error: item.drop_reason?.message || "Message was blocked" };
+      const dr = item.drop_reason;
+      const detail = [dr?.code, dr?.message].filter(Boolean).join(" — ");
+      return { ok: false, error: `Twitch dropped: ${detail || "unknown reason"}` };
     }
     return { ok: true };
   } catch {
@@ -380,10 +382,10 @@ async function sendKick(account: Account, slug: string, message: string): Promis
       body: JSON.stringify({ broadcaster_user_id: id, content: message, type: "user" }),
     });
     if (!r.ok) {
-      const body = (await r.json().catch(() => null)) as { message?: string; error?: string } | null;
-      const detail = body?.message || body?.error || `status ${r.status}`;
-      if (r.status === 401) return { ok: false, error: `Kick auth — reconnect (${detail})` };
-      return { ok: false, error: `Kick: ${detail}` };
+      const raw = await r.text().catch(() => "");
+      console.error("[kick send] status", r.status, "body:", raw);
+      if (r.status === 401) return { ok: false, error: "Kick auth — reconnect" };
+      return { ok: false, error: `Kick ${r.status}: ${raw.slice(0, 300) || "(empty body)"}` };
     }
     return { ok: true };
   } catch {
