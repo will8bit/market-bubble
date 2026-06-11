@@ -35,6 +35,7 @@ export const STREAMERS: StreamerConfig[] = [
 const xTargets: { streamer: StreamerId; url: string }[] = [
   { streamer: "banks", url: process.env.BANKS_X_BROADCAST || "" },
   { streamer: "ansem", url: process.env.ANSEM_X_BROADCAST || "" },
+  { streamer: "marketbubble", url: process.env.MARKETBUBBLE_X_BROADCAST || "" },
 ];
 
 export const X_TARGETS = xTargets.filter((t) => t.url);

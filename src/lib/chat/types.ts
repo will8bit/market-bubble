@@ -1,6 +1,6 @@
 export type Platform = "twitch" | "kick" | "x";
 
-export type StreamerId = "banks" | "ansem";
+export type StreamerId = "banks" | "ansem" | "marketbubble";
 
 export interface Badge {
   type: "broadcaster" | "moderator" | "subscriber" | "vip" | "verified" | "og";
@@ -44,7 +44,18 @@ export interface StreamerConfig {
 export const STREAMERS: StreamerConfig[] = [
   { id: "banks", displayName: "Banks", twitch: "banks", kick: "banks", x: "banks" },
   { id: "ansem", displayName: "Ansem", twitch: "ansem", kick: "ansem", x: "blknoiz06" },
+  { id: "marketbubble", displayName: "Market Bubble", x: "marketbubble" },
 ];
+
+export function streamerPlatforms(id: StreamerId): Platform[] {
+  const s = STREAMERS.find((x) => x.id === id);
+  if (!s) return [];
+  const out: Platform[] = [];
+  if (s.twitch) out.push("twitch");
+  if (s.kick) out.push("kick");
+  if (s.x) out.push("x");
+  return out;
+}
 
 export const PLATFORM_LABEL: Record<Platform, string> = {
   twitch: "Twitch",

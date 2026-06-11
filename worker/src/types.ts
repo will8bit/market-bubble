@@ -1,6 +1,6 @@
 export type Platform = "twitch" | "kick" | "x";
 
-export type StreamerId = "banks" | "ansem";
+export type StreamerId = "banks" | "ansem" | "marketbubble";
 
 export interface Badge {
   type: "broadcaster" | "moderator" | "subscriber" | "vip" | "verified" | "og";
