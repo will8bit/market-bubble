@@ -38,7 +38,8 @@ function HostCard({ host }: { host: Host }) {
       bg={c.surfaceLight}
       border="1px solid"
       borderColor={c.border.subtle}
-      _hover={{ textDecoration: "none" }}
+      _hover={{ textDecoration: "none", bg: c.surfaceRaised }}
+      transition="background-color 0.15s"
     >
       <Box
         w="46px"
@@ -51,7 +52,7 @@ function HostCard({ host }: { host: Host }) {
       >
         <Image src={src} alt={host.name} w="100%" h="100%" objectFit="cover" />
       </Box>
-      <Box>
+      <Box flex="1">
         <Text fontSize="md" fontWeight={600} color={c.text.primary}>
           {host.name}
         </Text>
@@ -62,6 +63,7 @@ function HostCard({ host }: { host: Host }) {
           {host.handle}
         </Text>
       </Box>
+      <FaXTwitter size={14} color={c.text.subtle} />
     </HStack>
   );
 }
@@ -69,8 +71,8 @@ function HostCard({ host }: { host: Host }) {
 export function ShowInfo({ open = true, onToggle }: { open?: boolean; onToggle?: () => void }) {
   const c = useColors();
   return (
-    <Box mt="22px" px="8px">
-      <Box borderTop="1px solid" borderColor={c.border.subtle} pt="22px">
+    <Box px="8px">
+      <Box>
         <Flex
           as="button"
           onClick={onToggle}

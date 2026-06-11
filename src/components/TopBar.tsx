@@ -30,7 +30,7 @@ function ProToggle() {
     >
       <LuLayoutDashboard size={15} />
       <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.1em">
-        PRO
+        {pro ? "PRO" : "SIMPLE"}
       </Text>
     </HStack>
   );

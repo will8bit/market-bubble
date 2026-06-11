@@ -227,11 +227,16 @@ export function ProfileMenu() {
         display="flex"
         alignItems="center"
         justifyContent="center"
+        overflow="hidden"
         _hover={{ color: c.text.primary, bg: c.overlay.hover }}
         transition="all 0.15s"
         aria-label="Profile menu"
       >
-        <LuUser size={17} />
+        {primary?.avatar ? (
+          <Image src={primary.avatar} alt={primary.displayName} w="100%" h="100%" objectFit="cover" />
+        ) : (
+          <LuUser size={17} />
+        )}
       </Box>
 
       {open && (

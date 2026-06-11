@@ -1,145 +1,174 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Box, HStack, VStack, Text, Flex, AspectRatio } from "@chakra-ui/react";
 import { FaTwitch, FaXTwitter } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
 import { LuEye } from "react-icons/lu";
-import { Platform } from "@/lib/chat/types";
 import { useColors } from "@/theme/useColors";
 import { useStats } from "@/lib/chat/StatsProvider";
 import { MarketBubbleMark } from "./Logo";
+import { RollingNumber } from "./RollingNumber";
 
-const SOURCES: Platform[] = ["twitch", "kick", "x"];
+const VIDEO_TWITCH = process.env.NEXT_PUBLIC_VIDEO_TWITCH;
+const VIDEO_KICK = process.env.NEXT_PUBLIC_VIDEO_KICK;
+const VIDEO_X = process.env.NEXT_PUBLIC_VIDEO_X;
 
-function SourceIcon({ platform }: { platform: Platform }) {
-  if (platform === "twitch") return <FaTwitch size={14} />;
-  if (platform === "x") return <FaXTwitter size={14} />;
-  return <SiKick size={13} />;
-}
+const EPISODE_TZ = "America/Los_Angeles";
+const EPISODE_HOUR = 13;
 
-function Uptime() {
-  const c = useColors();
-  const stats = useStats();
-  const startedAt = stats?.viewers.twitchStartedAt ?? null;
+function useNow(intervalMs = 1000) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    const t = setInterval(() => setNow(Date.now()), intervalMs);
     return () => clearInterval(t);
-  }, []);
+  }, [intervalMs]);
+  return now;
+}
 
-  if (!startedAt) {
-    return (
-      <Text fontFamily="mono" fontSize="lg" fontWeight={600} color={c.text.subtle}>
-        —
-      </Text>
+function zonedWallToUtc(wallUTCms: number, timeZone: string): number {
+  const date = new Date(wallUTCms);
+  const tz = new Date(date.toLocaleString("en-US", { timeZone }));
+  const utc = new Date(date.toLocaleString("en-US", { timeZone: "UTC" }));
+  return wallUTCms - (tz.getTime() - utc.getTime());
+}
+
+function nextEpisodeInstant(now: number): number {
+  for (let i = 0; i <= 8; i++) {
+    const moment = new Date(now + i * 86400000);
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: EPISODE_TZ,
+      weekday: "short",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(moment);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+    if (get("weekday") !== "Thu") continue;
+    const instant = zonedWallToUtc(
+      Date.UTC(Number(get("year")), Number(get("month")) - 1, Number(get("day")), EPISODE_HOUR, 0, 0),
+      EPISODE_TZ
     );
+    if (instant > now) return instant;
   }
+  return now;
+}
 
+function pad(n: number) {
+  return n.toString().padStart(2, "0");
+}
+
+function fmtUptime(now: number, startedAt: string): string {
   const secs = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000));
-  const pad = (n: number) => n.toString().padStart(2, "0");
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
   const s = secs % 60;
-  const label = h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
-  return (
-    <Text fontFamily="mono" fontSize="lg" fontWeight={600} color={c.text.muted}>
-      {label}
-    </Text>
-  );
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
-function SourceTabs({
-  source,
-  setSource,
-}: {
-  source: Platform;
-  setSource: (p: Platform) => void;
-}) {
+function fmtCountdown(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${pad(m)}m ${pad(s)}s`;
+  return `${m}m ${pad(s)}s`;
+}
+
+function StreamTimer() {
   const c = useColors();
+  const stats = useStats();
+  const startedAt = stats?.viewers.twitchStartedAt ?? null;
+  const now = useNow();
+
+  if (startedAt) {
+    return (
+      <RollingNumber
+        value={fmtUptime(now, startedAt)}
+        fontSize="lg"
+        fontFamily="mono"
+        fontWeight={600}
+        color={c.text.muted}
+      />
+    );
+  }
+
   return (
-    <HStack
-      spacing="0"
-      w="fit-content"
-      bg={c.overlay.soft}
-      border="1px solid"
-      borderColor={c.border.subtle}
-      borderRadius={c.radius.control}
-      overflow="hidden"
-    >
-      {SOURCES.map((s, i) => {
-        const active = s === source;
-        return (
-          <Flex
-            key={s}
-            as="button"
-            onClick={() => setSource(s)}
-            align="center"
-            justify="center"
-            w="48px"
-            h="36px"
-            bg={active ? c.overlay.strong : "transparent"}
-            color={active ? c.text.primary : c.text.muted}
-            borderLeft={i > 0 ? "1px solid" : "none"}
-            borderColor={c.border.subtle}
-            _hover={{ color: c.text.primary, bg: c.overlay.hover }}
-            transition="all 0.15s"
-          >
-            <SourceIcon platform={s} />
-          </Flex>
-        );
-      })}
+    <HStack spacing="7px" align="baseline">
+      <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.1em" color={c.text.subtle}>
+        NEXT EP
+      </Text>
+      <RollingNumber
+        value={fmtCountdown(nextEpisodeInstant(now) - now)}
+        fontSize="lg"
+        fontFamily="mono"
+        fontWeight={600}
+        color={c.text.muted}
+      />
     </HStack>
   );
 }
 
-const TEST_CHANNELS = {
-  twitch: process.env.NEXT_PUBLIC_VIDEO_TWITCH,
-  kick: process.env.NEXT_PUBLIC_VIDEO_KICK,
-};
-
-function XFallback() {
+function WatchLinks() {
   const c = useColors();
+  const links: { key: string; icon: ReactNode; url: string; color: string }[] = [];
+  if (VIDEO_TWITCH)
+    links.push({
+      key: "Twitch",
+      icon: <FaTwitch size={14} />,
+      url: `https://www.twitch.tv/${VIDEO_TWITCH}`,
+      color: c.platform.twitch,
+    });
+  if (VIDEO_KICK)
+    links.push({
+      key: "Kick",
+      icon: <SiKick size={13} />,
+      url: `https://kick.com/${VIDEO_KICK}`,
+      color: c.platform.kick,
+    });
+  if (VIDEO_X)
+    links.push({
+      key: "X",
+      icon: <FaXTwitter size={13} />,
+      url: `https://x.com/${VIDEO_X}`,
+      color: c.text.primary,
+    });
+  if (links.length === 0) return null;
+
   return (
-    <Flex
-      direction="column"
-      align="center"
-      justify="center"
-      gap="14px"
-      w="100%"
-      h="100%"
-      bg="#000"
-      px="20px"
-      textAlign="center"
-    >
-      <Box color="#e7e9ea" transform="scale(1.7)">
-        <FaXTwitter size={20} />
-      </Box>
-      <Text fontFamily="mono" fontSize="xs" color="rgba(255,255,255,0.55)" letterSpacing="0.05em">
-        LIVE ON X CAN&apos;T BE EMBEDDED
-      </Text>
-      <Box
-        as="a"
-        href="https://x.com"
-        target="_blank"
-        rel="noopener noreferrer"
-        px="14px"
-        py="8px"
-        borderRadius={c.radius.control}
-        bg="rgba(255,255,255,0.1)"
-        color="#fff"
-        fontSize="sm"
-        fontWeight={600}
-        _hover={{ bg: "rgba(255,255,255,0.18)" }}
-        transition="background 0.15s"
-      >
-        Watch on X ↗
-      </Box>
-    </Flex>
+    <HStack spacing="6px">
+      {links.map((l) => (
+        <Flex
+          key={l.key}
+          as="a"
+          href={l.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          align="center"
+          justify="center"
+          w="36px"
+          h="36px"
+          borderRadius={c.radius.control}
+          bg={c.overlay.soft}
+          border="1px solid"
+          borderColor={c.border.subtle}
+          color={c.text.muted}
+          _hover={{ color: l.color, bg: c.overlay.hover }}
+          transition="all 0.15s"
+          aria-label={`Watch on ${l.key}`}
+        >
+          {l.icon}
+        </Flex>
+      ))}
+    </HStack>
   );
 }
 
 function OfflineScreen() {
+  const now = useNow();
+  const target = nextEpisodeInstant(now);
   return (
     <Flex
       position="absolute"
@@ -147,7 +176,7 @@ function OfflineScreen() {
       direction="column"
       align="center"
       justify="center"
-      gap="14px"
+      gap="16px"
       bg="#000"
       textAlign="center"
       px="20px"
@@ -158,9 +187,18 @@ function OfflineScreen() {
       <Text fontFamily="heading" fontWeight={400} fontSize="4xl" color="#fefefe" lineHeight={1.1}>
         We&apos;re offline
       </Text>
-      <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.12em" color="rgba(255,255,255,0.55)">
-        LIVE EVERY THURSDAY · 1PM PST
-      </Text>
+      <VStack spacing="4px">
+        <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.12em" color="rgba(255,255,255,0.5)">
+          NEXT EPISODE IN
+        </Text>
+        <RollingNumber
+          value={fmtCountdown(target - now)}
+          fontSize="2xl"
+          fontFamily="mono"
+          fontWeight={600}
+          color="#fefefe"
+        />
+      </VStack>
     </Flex>
   );
 }
@@ -230,7 +268,7 @@ export function VideoStage({ hideViewerCount = false }: { hideViewerCount?: bool
   const c = useColors();
   const stats = useStats();
   const total = stats?.viewers.total ?? null;
-  const [source, setSource] = useState<Platform>("twitch");
+  const live = Boolean(stats?.viewers.twitchStartedAt);
   const [host, setHost] = useState("");
 
   useEffect(() => {
@@ -249,26 +287,10 @@ export function VideoStage({ hideViewerCount = false }: { hideViewerCount?: bool
       >
         <Box position="relative" w="100%" maxW="1280px">
           <AspectRatio ratio={16 / 9}>
-            {source === "twitch" ? (
-              host && TEST_CHANNELS.twitch ? (
-                <TwitchPlayer channel={TEST_CHANNELS.twitch} host={host} />
-              ) : (
-                <Box bg="#000" />
-              )
-            ) : source === "kick" ? (
-              TEST_CHANNELS.kick ? (
-                <iframe
-                  title="Kick player"
-                  src={`https://player.kick.com/${TEST_CHANNELS.kick}?autoplay=true&muted=true`}
-                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                  style={{ border: 0, width: "100%", height: "100%" }}
-                />
-              ) : (
-                <Box bg="#000" />
-              )
+            {host && VIDEO_TWITCH ? (
+              <TwitchPlayer channel={VIDEO_TWITCH} host={host} />
             ) : (
-              <XFallback />
+              <Box bg="#000" />
             )}
           </AspectRatio>
         </Box>
@@ -283,7 +305,7 @@ export function VideoStage({ hideViewerCount = false }: { hideViewerCount?: bool
             lineHeight={1.05}
             color={c.text.primary}
           >
-            Make Money, Command Attention, Leverage AI
+            Greg Osuri &amp; Mayne: Market Bubble EP 4
           </Text>
           <Box mt="12px">
             <Text fontFamily="mono" fontSize="2xs" letterSpacing="0.08em" color={c.text.subtle}>
@@ -293,17 +315,21 @@ export function VideoStage({ hideViewerCount = false }: { hideViewerCount?: bool
         </Box>
 
         <VStack align="flex-end" spacing="12px" flexShrink={0}>
-          <SourceTabs source={source} setSource={setSource} />
+          <WatchLinks />
           <HStack spacing="14px">
-            {!hideViewerCount && (
+            {!hideViewerCount && live && (
               <HStack spacing="8px" color={c.brand.red}>
                 <LuEye size={18} />
-                <Text fontFamily="mono" fontSize="lg" fontWeight={600}>
-                  {total != null ? total.toLocaleString() : "—"}
-                </Text>
+                {total != null ? (
+                  <RollingNumber value={total} fontSize="lg" fontFamily="mono" fontWeight={600} />
+                ) : (
+                  <Text fontFamily="mono" fontSize="lg" fontWeight={600}>
+                    —
+                  </Text>
+                )}
               </HStack>
             )}
-            <Uptime />
+            <StreamTimer />
           </HStack>
         </VStack>
       </Flex>

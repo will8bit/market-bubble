@@ -10,6 +10,7 @@ export interface PolyMarket {
   yes: number;
   no: number;
   endDate: string;
+  url: string;
 }
 
 const STABLES = new Set(["usdt", "usdc", "dai", "busd", "tusd", "usds", "fdusd", "usde"]);
@@ -56,7 +57,8 @@ export async function getPolymarket(): Promise<PolyMarket[]> {
       outcomePrices?: string;
       endDate?: string;
       negRisk?: boolean;
-      events?: Array<{ id?: string }>;
+      slug?: string;
+      events?: Array<{ id?: string; slug?: string }>;
     }>;
     const out: PolyMarket[] = [];
     const seenEvents = new Set<string>();
@@ -77,7 +79,9 @@ export async function getPolymarket(): Promise<PolyMarket[]> {
           seenEvents.add(eventId);
         }
         const no = prices[noIdx] != null ? Number(prices[noIdx]) : 1 - yes;
-        out.push({ question: m.question, yes, no, endDate: m.endDate || "" });
+        const slug = m.events?.[0]?.slug || m.slug || "";
+        const url = slug ? `https://polymarket.com/event/${slug}` : "https://polymarket.com";
+        out.push({ question: m.question, yes, no, endDate: m.endDate || "", url });
       } catch {}
       if (out.length >= 5) break;
     }

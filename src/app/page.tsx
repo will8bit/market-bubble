@@ -41,7 +41,15 @@ export default function Page() {
         )}
 
         {pro ? (
-          <Flex direction="column" flex="1" minW={0} minH={0} gap={{ base: "8px", md: "14px" }}>
+          <Box
+            flex="1"
+            minW={0}
+            minH={0}
+            overflowY="auto"
+            display="flex"
+            flexDirection="column"
+            sx={{ "&::-webkit-scrollbar": { display: "none" }, scrollbarWidth: "none" }}
+          >
             <Box
               bg={c.surface}
               border="1px solid"
@@ -50,28 +58,47 @@ export default function Page() {
               boxShadow={c.shadow.soft}
               p={{ base: "12px", md: "18px" }}
               flexShrink={0}
+              mb={{ base: "8px", md: "14px" }}
             >
               <VideoStage hideViewerCount />
             </Box>
-            <Box flex="1" minH={0}>
+            <Box flex="1 0 auto" display="flex" flexDirection="column">
               <AudienceBox />
             </Box>
-          </Flex>
+          </Box>
         ) : (
           <Box
             flex={{ base: "0 0 auto", lg: "1 1 0%" }}
             minW={0}
-            bg={c.surface}
-            border="1px solid"
-            borderColor={c.border.subtle}
-            borderRadius={c.radius.panel}
-            boxShadow={c.shadow.soft}
+            minH={0}
             overflowY={{ base: "visible", lg: "auto" }}
+            display={{ lg: "flex" }}
+            flexDirection={{ lg: "column" }}
             sx={{ "&::-webkit-scrollbar": { display: "none" }, scrollbarWidth: "none" }}
-            p={{ base: "12px", md: "18px" }}
           >
-            <VideoStage />
-            <ShowInfo open={aboutOpen} onToggle={() => setAboutOpen((o) => !o)} />
+            <Box
+              bg={c.surface}
+              border="1px solid"
+              borderColor={c.border.subtle}
+              borderRadius={c.radius.panel}
+              boxShadow={c.shadow.soft}
+              p={{ base: "12px", md: "18px" }}
+              flexShrink={0}
+              mb={{ base: "8px", md: "14px" }}
+            >
+              <VideoStage />
+            </Box>
+            <Box
+              bg={c.surface}
+              border="1px solid"
+              borderColor={c.border.subtle}
+              borderRadius={c.radius.panel}
+              boxShadow={c.shadow.soft}
+              p={{ base: "12px", md: "18px" }}
+              flex={{ lg: "1 0 auto" }}
+            >
+              <ShowInfo open={aboutOpen} onToggle={() => setAboutOpen((o) => !o)} />
+            </Box>
           </Box>
         )}
 

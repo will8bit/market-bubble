@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Box, Flex, HStack, Image, Text, VStack, type BoxProps } from "@chakra-ui/react";
 import { FaTwitch, FaXTwitter } from "react-icons/fa6";
 import { SiKick } from "react-icons/si";
 import { LuCalendar, LuX, LuExternalLink, LuEye } from "react-icons/lu";
 import { useStats, type MarketQuote, type MediaClip, type MediaVideo } from "@/lib/chat/StatsProvider";
+import { RollingNumber } from "./RollingNumber";
 import { useAvatar } from "@/lib/avatars";
 import { useColors } from "@/theme/useColors";
 
@@ -220,18 +221,29 @@ function OutcomeBadge({ label, pct, color }: { label: string; pct: number; color
   );
 }
 
-function PolyCard({ m }: { m: { question: string; yes: number; no: number; endDate: string } }) {
+function PolyCard({
+  m,
+}: {
+  m: { question: string; yes: number; no: number; endDate: string; url?: string };
+}) {
   const c = useColors();
   const yesPct = Math.round(m.yes * 100);
   const noPct = Math.round(m.no * 100);
   const end = fmtEndDate(m.endDate);
   return (
     <Box
+      as="a"
+      href={m.url || "https://polymarket.com"}
+      target="_blank"
+      rel="noopener noreferrer"
+      display="block"
       bg={c.surfaceLight}
       border="1px solid"
       borderColor={c.border.subtle}
       borderRadius={c.radius.card}
       p="12px"
+      _hover={{ bg: c.surfaceRaised }}
+      transition="background-color 0.15s"
     >
       <Text fontSize="sm" fontWeight={600} color={c.text.primary} lineHeight={1.3} noOfLines={2}>
         {m.question}
@@ -246,14 +258,10 @@ function PolyCard({ m }: { m: { question: string; yes: number; no: number; endDa
         </HStack>
       )}
 
-      <Box mt="11px">
-        <Box h="6px" borderRadius="full" bg={c.overlay.soft} overflow="hidden" mb="5px">
-          <Box w={`${yesPct}%`} h="100%" bg={c.brand.green} />
-        </Box>
-        <Box h="6px" borderRadius="full" bg={c.overlay.soft} overflow="hidden">
-          <Box w={`${noPct}%`} h="100%" bg={c.brand.red} />
-        </Box>
-      </Box>
+      <Flex mt="11px" h="6px" borderRadius="full" overflow="hidden">
+        <Box w={`${yesPct}%`} bg={c.brand.green} />
+        <Box flex="1" bg={c.brand.red} />
+      </Flex>
 
       <HStack spacing="8px" mt="11px">
         <OutcomeBadge label="Yes" pct={yesPct} color={c.brand.green} />
@@ -348,117 +356,14 @@ export function MarketsPanel() {
 const STREAMER_IMG: Record<string, string> = { banks: "/banks.jpg", ansem: "/ansem.jpg" };
 
 const AUD_BASE = 16;
-const AUD_NUM = "2.25em";
-const AUD_PAD = "1.125em";
-const AUD_MT = "1em";
-const AUD_PT = "0.875em";
-const AUD_GAP = "0.625em";
-const AUD_HEAD_MB = "1em";
+const AUD_NUM = "2.125em";
+const AUD_MT = "0.75em";
+const AUD_PT = "0.7em";
+const AUD_GAP = "0.5em";
+const AUD_HEAD_MB = "0.75em";
 const AUD_LABEL = "0.6875em";
 const AUD_ROW = "0.8125em";
 const AUD_VAL = "0.875em";
-
-function FitScale({ children }: { children: React.ReactNode }) {
-  const outerRef = useRef<HTMLDivElement>(null);
-  const innerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  const scaleRef = useRef(1);
-
-  useEffect(() => {
-    const recompute = () => {
-      const outer = outerRef.current;
-      const inner = innerRef.current;
-      if (!outer || !inner) return;
-      const avail = outer.clientHeight - 4;
-      if (avail <= 0) return;
-      const natural = inner.offsetHeight / scaleRef.current;
-      if (natural <= 0) return;
-      const next = Math.max(0.45, Math.min(1, avail / natural));
-      if (Math.abs(next - scaleRef.current) > 0.004) {
-        scaleRef.current = next;
-        setScale(next);
-      }
-    };
-    recompute();
-    const ro = new ResizeObserver(recompute);
-    if (outerRef.current) ro.observe(outerRef.current);
-    if (innerRef.current) ro.observe(innerRef.current);
-    return () => ro.disconnect();
-  }, []);
-
-  return (
-    <Box
-      ref={outerRef}
-      h="100%"
-      display="flex"
-      alignItems="flex-start"
-      justifyContent="center"
-      overflow="hidden"
-    >
-      <Box ref={innerRef} w="100%" style={{ fontSize: `${AUD_BASE * scale}px` }}>
-        {children}
-      </Box>
-    </Box>
-  );
-}
-
-function RollingDigit({ digit }: { digit: number }) {
-  return (
-    <Box as="span" display="inline-block" overflow="hidden" h="1em" lineHeight="1">
-      <Box
-        as="span"
-        display="block"
-        transition="transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)"
-        transform={`translateY(-${digit}em)`}
-      >
-        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-          <Box as="span" key={n} display="block" h="1em" lineHeight="1">
-            {n}
-          </Box>
-        ))}
-      </Box>
-    </Box>
-  );
-}
-
-function RollingNumber({
-  value,
-  fontSize,
-  fontWeight = 600,
-  fontFamily = "body",
-  color,
-}: {
-  value: number;
-  fontSize: string;
-  fontWeight?: number;
-  fontFamily?: string;
-  color?: string;
-}) {
-  const chars = Math.round(value).toLocaleString().split("");
-  return (
-    <Flex
-      as="span"
-      display="inline-flex"
-      align="flex-end"
-      overflow="hidden"
-      lineHeight="1"
-      fontSize={fontSize}
-      fontWeight={fontWeight}
-      fontFamily={fontFamily}
-      color={color}
-    >
-      {chars.map((ch, i) =>
-        /\d/.test(ch) ? (
-          <RollingDigit key={i} digit={Number(ch)} />
-        ) : (
-          <Box as="span" key={i} display="inline-block" h="1em" lineHeight="1">
-            {ch}
-          </Box>
-        )
-      )}
-    </Flex>
-  );
-}
 
 function StreamerLine({
   name,
@@ -524,19 +429,8 @@ function TotalRow({ label, value, color }: { label: string; value: number | null
 }
 
 function TileShell({ children }: { children: React.ReactNode }) {
-  const c = useColors();
   return (
-    <Flex
-      direction="column"
-      flex="1"
-      minW={0}
-      maxW={{ md: "340px" }}
-      bg={c.surfaceLight}
-      border="1px solid"
-      borderColor={c.border.subtle}
-      borderRadius={c.radius.card}
-      p={AUD_PAD}
-    >
+    <Flex direction="column" flex="1" minW={0} maxW={{ md: "340px" }}>
       {children}
     </Flex>
   );
@@ -546,38 +440,35 @@ function BigNumber({ value, fallback }: { value: number | null; fallback: string
   const c = useColors();
   if (value == null) {
     return (
-      <Text fontFamily="body" fontWeight={600} fontSize={AUD_NUM} lineHeight="1" color={c.text.subtle}>
+      <Text fontFamily="body" fontWeight={500} fontSize={AUD_NUM} lineHeight="1" color={c.text.subtle}>
         {fallback}
       </Text>
     );
   }
-  return <RollingNumber value={value} fontSize={AUD_NUM} color={c.text.primary} />;
+  return <RollingNumber value={value} fontSize={AUD_NUM} fontWeight={500} color={c.text.primary} />;
 }
 
 function PlatformTile({
-  icon,
   name,
   total,
-  color,
   rows,
 }: {
-  icon: React.ReactNode;
   name: string;
   total: number | null;
-  color: string;
   rows: { name: string; value: number | null; color: string; img: string }[];
 }) {
   const c = useColors();
   return (
     <TileShell>
-      <HStack spacing="0.5625em" mb={AUD_HEAD_MB}>
-        <Box display="flex" color={color} fontSize="1em">
-          {icon}
-        </Box>
-        <Text fontFamily="mono" fontSize={AUD_LABEL} letterSpacing="0.1em" color={c.text.muted}>
-          {name.toUpperCase()}
-        </Text>
-      </HStack>
+      <Text
+        fontFamily="mono"
+        fontSize={AUD_LABEL}
+        letterSpacing="0.1em"
+        color={c.text.muted}
+        mb={AUD_HEAD_MB}
+      >
+        {name.toUpperCase()}
+      </Text>
 
       <BigNumber value={total} fallback="offline" />
 
@@ -609,8 +500,14 @@ function TotalTile({
   const c = useColors();
   return (
     <TileShell>
-      <Text fontFamily="mono" fontSize={AUD_LABEL} letterSpacing="0.1em" color={c.text.muted} mb={AUD_HEAD_MB}>
-        LIVE TOTAL
+      <Text
+        fontFamily="mono"
+        fontSize={AUD_LABEL}
+        letterSpacing="0.1em"
+        color={c.text.muted}
+        mb={AUD_HEAD_MB}
+      >
+        TOTAL
       </Text>
 
       <BigNumber value={total} fallback="—" />
@@ -632,7 +529,6 @@ function TotalTile({
 
 const STREAMER_NAME: Record<string, string> = { banks: "Banks", ansem: "Ansem" };
 
-const PANEL_CONTENT_MAX = "1052px";
 
 function streamerAccent(c: ReturnType<typeof useColors>, id: string) {
   return id === "banks" ? c.streamer.banks : c.streamer.ansem;
@@ -668,19 +564,17 @@ function AudienceTab() {
   const v = stats?.viewers;
   const streamers = v?.streamers ?? [];
   return (
-    <FitScale>
+    <Box w="100%" style={{ fontSize: `${AUD_BASE}px` }}>
       <Flex
         direction={{ base: "column", md: "row" }}
-        gap={{ base: "14px", md: "16px" }}
+        gap={{ base: "20px", md: "36px" }}
         w="100%"
         justify="center"
         align="stretch"
       >
         <PlatformTile
-          icon={<FaTwitch size="1em" />}
           name="Twitch"
           total={v?.twitch ?? null}
-          color={c.platform.twitch}
           rows={streamers.map((s) => ({
             name: s.name,
             value: s.twitch,
@@ -689,10 +583,8 @@ function AudienceTab() {
           }))}
         />
         <PlatformTile
-          icon={<SiKick size="1em" />}
           name="Kick"
           total={v?.kick ?? null}
-          color={c.platform.kick}
           rows={streamers.map((s) => ({
             name: s.name,
             value: s.kick,
@@ -702,7 +594,7 @@ function AudienceTab() {
         />
         <TotalTile total={v?.total ?? null} site={v?.site ?? null} peak={v?.peak ?? null} />
       </Flex>
-    </FitScale>
+    </Box>
   );
 }
 
@@ -721,6 +613,8 @@ function HostRow({ host }: { host: (typeof ABOUT_HOSTS)[number] }) {
       href={`https://x.com/${host.x}`}
       target="_blank"
       rel="noopener noreferrer"
+      flex="1"
+      minW={0}
       spacing="10px"
       p="9px"
       borderRadius={c.radius.card}
@@ -757,16 +651,16 @@ function HostRow({ host }: { host: (typeof ABOUT_HOSTS)[number] }) {
 function AboutTab() {
   const c = useColors();
   return (
-    <Box maxW={PANEL_CONTENT_MAX} mx="auto" w="100%">
-      <Text fontSize="sm" lineHeight={1.65} color={c.text.secondary} maxW="640px">
+    <Box maxW="640px" w="100%">
+      <Text fontSize="sm" lineHeight={1.65} color={c.text.secondary}>
         Market Bubble is a live markets show where Banks and Ansem break down crypto, trade ideas, and
-        the week&apos;s biggest moves — unfiltered.
+        the week&apos;s biggest moves — unfiltered. Make money, command attention, leverage AI.
       </Text>
-      <VStack mt="14px" spacing="8px" align="stretch">
+      <HStack mt="14px" spacing="8px" align="stretch">
         {ABOUT_HOSTS.map((h) => (
           <HostRow key={h.id} host={h} />
         ))}
-      </VStack>
+      </HStack>
       <HStack mt="14px" spacing="7px">
         {[
           { label: "Twitch", icon: <FaTwitch size={15} /> },
@@ -775,6 +669,7 @@ function AboutTab() {
         ].map((s) => (
           <Flex
             key={s.label}
+            as="button"
             align="center"
             justify="center"
             w="34px"
@@ -784,6 +679,8 @@ function AboutTab() {
             border="1px solid"
             borderColor={c.border.subtle}
             color={c.text.secondary}
+            _hover={{ color: c.text.primary, bg: c.overlay.hover }}
+            transition="all 0.15s"
             aria-label={s.label}
           >
             {s.icon}
@@ -968,7 +865,7 @@ function MediaList({
   const shown = filter === "all" ? items : items.filter((i) => i.streamer === filter);
 
   return (
-    <Box maxW={PANEL_CONTENT_MAX} mx="auto" w="100%">
+    <Box w="100%">
       {streamerIds.length > 1 ? (
         <FilterPills
           value={filter}
@@ -1089,9 +986,9 @@ export function AudienceBox() {
       borderColor={c.border.subtle}
       borderRadius={c.radius.panel}
       boxShadow={c.shadow.soft}
-      p="16px"
-      h="100%"
-      minH={0}
+      px="24px"
+      py="16px"
+      flex="1"
       display="flex"
       flexDirection="column"
     >
@@ -1117,7 +1014,7 @@ export function AudienceBox() {
           CLIPS
         </TabButton>
       </HStack>
-      <Box flex="1" minH={0} overflowY={tab === "audience" ? "hidden" : "auto"}>
+      <Box overflowY="visible">
         {tab === "audience" && <AudienceTab />}
         {tab === "about" && <AboutTab />}
         {tab === "history" && <MediaList kind="broadcasts" onOpen={setActive} />}

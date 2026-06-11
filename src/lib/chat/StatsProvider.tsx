@@ -51,7 +51,7 @@ export interface Stats {
   };
   markets: {
     crypto: MarketQuote[];
-    polymarket: { question: string; yes: number; no: number; endDate: string }[];
+    polymarket: { question: string; yes: number; no: number; endDate: string; url?: string }[];
   };
   media?: {
     clips: MediaClip[];
