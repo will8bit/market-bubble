@@ -13,7 +13,10 @@ import { useColors } from "@/theme/useColors";
 function AdminButton({ onAdmin }: { onAdmin: boolean }) {
   const c = useColors();
   const { admin } = useAuth();
-  if (!admin) return null;
+  // TEMP: show the ADMIN button to everyone so judges can find /admin.
+  // Set PUBLIC_ADMIN_BUTTON back to false to restrict it to admins only.
+  const PUBLIC_ADMIN_BUTTON = true;
+  if (!admin && !PUBLIC_ADMIN_BUTTON) return null;
   return (
     <HStack
       as="a"
